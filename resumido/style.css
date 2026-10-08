@@ -1,0 +1,114 @@
+:root {
+    --ink: #0B1020;
+    --panel: rgba(11, 16, 32, .82);
+    --line: #2C3A66;
+    --text: #E6ECF7;
+    --dim: #8FA3D9;
+    --accent: #FF8A3D;
+    --gold: #FFE500;
+    /* El lienzo ocupa la ventana manteniendo 16:9. */
+    --bar: 84px;   /* lugares y ayuda, debajo del lienzo */
+    --vw: min(100vw, calc((100vh - var(--bar)) * 16 / 9));
+}
+
+* { box-sizing: border-box; }
+
+html { overflow-x: hidden; background: #05070F; }
+body {
+    /* Sin overflow aquí: recortaría la barra de lugares, que cuelga debajo del lienzo. */
+    margin: 0; min-height: 100vh;
+    color: var(--text);
+    font: 13px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+#stage {
+    position: relative;
+    width: var(--vw);
+    margin: max(0px, calc((100vh - var(--bar) - var(--vw) * 9 / 16) / 2)) auto 0;
+}
+
+#view {
+    display: block; width: 100%; aspect-ratio: 16 / 9; height: auto;
+    image-rendering: crisp-edges; image-rendering: pixelated;
+    cursor: grab; touch-action: none; user-select: none;
+}
+
+#hud, #controls, #card { position: absolute; }
+
+#hud { left: 12px; top: 10px; pointer-events: none; text-shadow: 0 2px 0 rgba(0, 0, 0, .55); }
+#hud h1 { margin: 0; font-size: 22px; letter-spacing: .14em; text-transform: uppercase; color: #fff; }
+#hud h1 small { font-size: 11px; letter-spacing: .06em; color: var(--gold); font-weight: 600; }
+#clock { margin: 2px 0 0; color: var(--dim); }
+#clock strong { color: #fff; font-size: 16px; }
+#switch {
+    display: inline-block; margin-top: 4px; padding: 3px 7px; pointer-events: auto;
+    color: #1A0E04; background: var(--gold); border-radius: 3px; text-decoration: none;
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-shadow: none;
+}
+#switch:hover { background: #fff; }
+.enlace { display: inline-block; margin-top: 4px; padding: 3px 7px; pointer-events: auto; color: var(--text); background: #16203F; border: 1px solid var(--line); border-radius: 3px; text-decoration: none; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-shadow: none; }
+.enlace:hover { border-color: var(--dim); }
+
+#controls {
+    right: 12px; top: 10px; width: 292px; padding: 10px;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 4px;
+    display: grid; gap: 7px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row label { color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.row input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+
+button {
+    font: inherit; font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--text); background: #16203F; border: 2px solid var(--line); border-radius: 3px;
+    padding: 5px 7px; cursor: pointer; flex: 1; white-space: nowrap;
+}
+button:hover { border-color: var(--dim); }
+button:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+button.on { background: var(--accent); border-color: #FFC08F; color: #1A0E04; font-weight: 700; }
+
+#places {
+    margin: 8px 8px 0;
+    display: flex; flex-wrap: wrap; gap: 5px; justify-content: center;
+}
+#places button { flex: 0 0 auto; background: var(--panel); }
+#places button.on { background: var(--gold); border-color: #FFF3A0; }
+
+#card {
+    left: 12px; top: 100px; width: min(340px, calc(100% - 330px)); padding: 12px 14px;
+    background: var(--panel); border: 2px solid var(--gold); border-radius: 4px;
+}
+#card[hidden] { display: none; }
+#card h2 { margin: 0 22px 2px 0; font-size: 15px; color: var(--gold); }
+#card .sub { margin: 0 0 8px; color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+#card .text { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px; line-height: 1.5; }
+#card button { position: absolute; right: 6px; top: 6px; flex: none; width: 22px; padding: 1px 0; font-size: 14px; }
+
+#hint {
+    margin: 8px 8px 10px; text-align: center;
+    color: var(--dim); font-size: 11px; pointer-events: none;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, .8);
+}
+
+/* En pantallas chicas los paneles se compactan para no tapar la ciudad. */
+@media (max-width: 760px) {
+    #hud h1 { font-size: 15px; }
+    #controls { position: relative; right: auto; top: auto; width: auto; margin: 8px; padding: 8px; gap: 6px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #controls .row:first-child { grid-column: 1 / -1; }
+    #card { top: 90px; width: calc(100% - 24px); z-index: 2; }
+    #hint { display: none; }
+    button { font-size: 10px; padding: 4px 5px; }
+}
+
+@media (max-width: 420px) {
+    #hud h1 small { display: block; font-size: 9px; }
+    #controls { grid-template-columns: 1fr; }
+    #card { max-height: calc(100vw * 9 / 16 - 95px); overflow-y: auto; }
+}
+
+/* Pantalla completa: el lienzo ocupa toda la ventana que su proporción permite y lo demás flota encima. */
+html, body { height: 100%; overflow: hidden; }
+#stage { position: fixed; inset: 0; width: auto; margin: 0; overflow: hidden; }
+#view { position: absolute; left: 50%; top: 50%; width: min(100vw, calc(100vh * 16 / 9)); transform: translate(-50%, -50%); }
+#places { position: absolute; left: 0; right: 0; bottom: 6px; margin: 0 8px; }
+#hint { display: none; }

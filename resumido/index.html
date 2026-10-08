@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quito resumido · el mapa de las atracciones principales</title>
+    <meta name="description" content="Panorama interactivo de Quito en pixel art: recorre la ciudad de sur a norte, cambia la hora y el clima, y descubre sus lugares.">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="stage">
+    <canvas id="view" width="384" height="216" aria-label="Mapa interactivo de Quito en pixel art, visto desde arriba"></canvas>
+
+    <header id="hud">
+        <h1>Quito <small>2.850 m · 0°13′ S</small></h1>
+        <p id="clock"><strong>10:00</strong> <span>mañana</span></p>
+        <a id="switch" href="panorama.html">Ver de lado →</a> <a class="enlace" href="../index.html">Mapa completo ↗</a>
+    </header>
+
+    <section id="controls" aria-label="Controles">
+        <div class="row">
+            <label for="hour">Hora</label>
+            <input id="hour" type="range" min="0" max="23.95" step="0.05" value="10">
+        </div>
+        <div class="row" role="group" aria-label="Clima">
+            <button type="button" data-weather="clear" class="on">Despejado</button>
+            <button type="button" data-weather="rain">Aguacero</button>
+            <button type="button" data-weather="fog">Neblina</button>
+        </div>
+        <div class="row">
+            <button type="button" id="play">Pausar el tiempo</button>
+            <button type="button" id="tour">Paseo</button>
+        </div>
+        <div class="row">
+            <button type="button" id="fiestas">Fiestas de Quito</button>
+            <button type="button" id="sound">Sonido</button>
+        </div>
+        <div class="row">
+            <button type="button" id="names">Nombres</button>
+            <button type="button" id="metro">Metro</button>
+        </div>
+    </section>
+
+    <aside id="card" hidden aria-live="polite">
+        <button type="button" aria-label="Cerrar">×</button>
+        <h2></h2>
+        <p class="sub"></p>
+        <p class="text"></p>
+    </aside>
+
+    <nav id="places" aria-label="Ir a un lugar"></nav>
+
+    <p id="hint">Arrastra o usa las flechas para recorrer · clic en un lugar para conocerlo · clic en cualquier punto libre: cometas de día, fuegos artificiales de noche · el norte queda a la derecha</p>
+</main>
+
+<script src="js/core.js"></script>
+<script src="js/info.js"></script>
+<script src="js/sfx.js"></script>
+<script src="js/top.js"></script>
+</body>
+</html>

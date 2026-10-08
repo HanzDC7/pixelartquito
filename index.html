@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Quito · el mapa real en pixel art</title>
+    <meta name="description" content="El mapa real de Quito, a escala y en pixel art: todas sus calles, edificios, parques y cerros, de Guamaní a la Mitad del Mundo, desde arriba o inclinado, con la historia de sus lugares.">
+    <link rel="stylesheet" href="mapa.css">
+</head>
+<body>
+<main id="stage">
+    <canvas id="view" width="640" height="360" aria-label="Mapa de Quito en pixel art, a escala"></canvas>
+
+    <header id="hud">
+        <h1>Quito</h1>
+        <p id="clock"><strong>10:00</strong> <span>mañana</span></p>
+        <p id="pos" title="Coordenadas y altitud bajo el cursor"></p>
+    </header>
+
+    <div id="barra" role="toolbar" aria-label="Vista">
+        <button type="button" id="jugar" title="Jefe de línea: dirige el Metro de Quito durante una semana">Jugar</button>
+        <button type="button" id="partidas" title="Elegir partida, practicar o revisar la semana">Partidas</button>
+        <button type="button" id="vista" title="Cambiar entre la vista desde arriba y la inclinada (tecla V)">Ver inclinado</button>
+        <button type="button" id="alejar" aria-label="Alejar" title="Alejar (tecla -)">−</button>
+        <span id="nivel">barrio · 1 px = 2 m</span>
+        <button type="button" id="acercar" aria-label="Acercar" title="Acercar (tecla +)">+</button>
+        <button type="button" id="menu" aria-expanded="false" aria-controls="controls">Opciones</button>
+    </div>
+
+    <section id="controls" aria-label="Opciones" hidden>
+        <div class="row">
+            <input id="buscar" type="search" list="sugerencias" placeholder="Buscar lugar, barrio o avenida…" aria-label="Buscar lugar, barrio o avenida" autocomplete="off">
+            <datalist id="sugerencias"></datalist>
+        </div>
+        <div class="row">
+            <label for="hour">Hora</label>
+            <input id="hour" type="range" min="0" max="23.95" step="0.05" value="10">
+        </div>
+        <div class="row" role="group" aria-label="Clima">
+            <button type="button" data-weather="clear" class="on">Despejado</button>
+            <button type="button" data-weather="rain">Aguacero</button>
+            <button type="button" data-weather="fog">Neblina</button>
+        </div>
+        <div class="row">
+            <button type="button" id="play">Pausar el tiempo</button>
+            <button type="button" id="tour">Paseo</button>
+        </div>
+        <div class="row">
+            <button type="button" id="names">Nombres</button>
+            <button type="button" id="metro">Metro</button>
+        </div>
+        <div class="row">
+            <button type="button" id="fiestas">Fiestas de Quito</button>
+            <button type="button" id="sound" aria-pressed="false">Sonido: apagado</button>
+        </div>
+        <div class="row">
+            <label for="volume">Volumen</label>
+            <input id="volume" type="range" min="0" max="100" step="1" value="45">
+            <output id="volume-value" for="volume">45%</output>
+        </div>
+        <div class="row">
+            <button type="button" id="limpio" title="Deja solo el dibujo (tecla H)">Solo el mapa</button>
+            <a class="boton" href="resumido/index.html" title="El mapa de antes, con solo las atracciones principales">Versión resumida</a>
+        </div>
+        <p class="ayuda">Arrastra para moverte · rueda o + − para acercarte · clic en un lugar para leer su historia · V inclina la vista · H deja solo el mapa</p>
+    </section>
+
+    <aside id="card" hidden aria-live="polite"></aside>
+
+    <nav id="places" aria-label="Ir a un lugar"></nav>
+
+    <button type="button" id="volver" title="Mostrar los controles (tecla H)">Controles</button>
+    <p id="creditos">Datos © colaboradores de OpenStreetMap · relieve SRTM</p>
+</main>
+
+<script src="js/nucleo.js"></script>
+<script src="js/datos/base.js"></script>
+<script src="js/geo.js"></script>
+<script src="js/fichas.js"></script>
+<script src="js/sitios.js"></script>
+<script src="js/sonido.js"></script>
+<script src="js/pinta.js"></script>
+<script src="js/mapa.js"></script>
+<script src="js/metro-sim.js"></script>
+<script src="js/metro-campana.js"></script>
+<script src="js/metro-dentro.js"></script>
+<script src="js/metro-tren.js"></script>
+<script src="js/juego.js"></script>
+</body>
+</html>

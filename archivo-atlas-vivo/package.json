@@ -1,0 +1,8 @@
+{
+  "name": "quito-atlas-vivo",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Quito en pixel art, historias interactivas y minijuegos. Sin dependencias en producción.",
+  "scripts": { "test": "node --test tests/*.test.cjs" },
+  "devDependencies": { "@napi-rs/canvas": "1.0.10", "jsdom": "29.1.1" }
+}

@@ -1,0 +1,17 @@
+{
+  "checks": [
+    "El zoom parte de la escala actual sin un salto previo",
+    "La entrada muestra la estación elegida",
+    "La partida espera mientras se acerca la cámara",
+    "El zoom abre el interior de la misma estación",
+    "El lienzo recupera su escala y los controles responden",
+    "El reloj arranca al entrar",
+    "Pausar funciona después de la transición",
+    "La entrada puede apuntar a otra estación",
+    "Saltar y girar la pantalla conserva el destino",
+    "Doble pulsación y Escape producen una sola partida",
+    "Movimiento reducido entra sin zoom ni espera",
+    "Sin errores JavaScript"
+  ],
+  "errors": []
+}

@@ -1,0 +1,222 @@
+"""Prueba del juego real en Chrome/Chromium. Requiere: pip install playwright."""
+import argparse
+import json
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--url', default='http://127.0.0.1:8766')
+parser.add_argument('--browser', help='Ruta al ejecutable de Chrome; por defecto usa Chromium de Playwright')
+parser.add_argument('--output', default='docs/playtest')
+args = parser.parse_args()
+out = Path(args.output)
+out.mkdir(parents=True, exist_ok=True)
+results, errors, findings = [], [], []
+
+with sync_playwright() as p:
+    browser = p.chromium.launch(headless=True, **({'executable_path': args.browser} if args.browser else {}))
+    context = browser.new_context(viewport={'width': 1440, 'height': 900})
+    page = context.new_page()
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    page.on('dialog', lambda d: d.accept())
+
+    def load(fragment=''):
+        page.goto('about:blank')
+        page.goto(args.url + '/#' + fragment)
+        page.wait_for_load_state('networkidle')
+        assert page.evaluate('!!Q.juego'), 'El juego no se inicializó'
+
+    def shot(name):
+        page.screenshot(path=str(out / (name + '.png')))
+
+    def check(name, condition):
+        assert condition, name + " | " + str(errors)
+        results.append(name)
+
+    load('juego')
+    check('Menú principal: tres partidas', page.get_by_role('button', name='Nueva partida', exact=True).count() == 3)
+    shot('titulo')
+    page.get_by_role('button', name='Sonido: apagado', exact=True).click()
+    page.wait_for_function('Q.state.sound')
+    page.get_by_role('button', name='Nueva partida', exact=True).first.click()
+    check('Campaña: siete días', page.locator('#jfin .dia').count() == 7)
+    shot('semana')
+    # Cada día de la semana entrega una mecánica nueva. Este recorrido prueba todas las herramientas a la vez, así que
+    # arranca en el miércoles (horario, boleterías y trenes) y con las guías ya vistas; las guías, la tienda progresiva
+    # y el turno sin fin se prueban en tools/playtest-semana.py.
+    page.evaluate('() => { const p = Q.juego.partida; p.dia = 2; p.guias = Array(7).fill(true); Q.juego.semana(2); }')
+    page.get_by_role('button', name='Empezar el miércoles', exact=True).click()
+    initial = page.evaluate('Q.juego.sim.t')
+    page.wait_for_function('(t) => Q.juego.sim.t > t + 1', arg=initial)
+    check('El día inicia en marcha dentro de Quitumbe', page.locator('body.dentro').count() == 1 and page.get_by_label('Ver estación', exact=True).input_value() == '0')
+    check('Inicio sin paneles que tapen la estación', not page.locator('#jpanel').is_visible() and not page.locator('#jest').is_visible())
+    shot('inicio-quitumbe')
+    page.get_by_role('button', name='Horario', exact=True).click()
+    check('Horario visible sobre el lienzo', page.locator('#jpanel').is_visible())
+    page.locator('#jpanel .franja .menos').nth(1).click()
+    check('Cambiar frecuencia', page.evaluate('Q.juego.sim.horario[1] === 6'))
+    page.locator('#jpanel').get_by_role('button', name='Cerrar', exact=True).click()
+    initial = page.evaluate('Q.juego.sim.t')
+    page.get_by_role('button', name='×1', exact=True).click()
+    page.wait_for_function('(t) => Q.juego.sim.t > t + 0.1', arg=initial)
+    page.keyboard.press('Space')
+    paused = page.evaluate('Q.juego.sim.t')
+    page.evaluate('Q.mapa.extra.paso(1)')
+    check('Pausa conserva el reloj', page.evaluate('Q.juego.sim.t') == paused)
+    page.locator('#menu').click()
+    check('Opciones de audio accesibles durante la partida', page.locator('#sound').is_visible() and page.locator('#volume').is_visible() and not page.locator('#hour').is_visible())
+    page.locator('#menu').click()
+    page.get_by_role('button', name='Boleterías', exact=True).click()
+    before = page.evaluate('Q.juego.sim.est[0].maquinas')
+    page.locator('#jpanel .compra').first.click()
+    check('Compra de máquina', page.evaluate('Q.juego.sim.est[0].maquinas') == before + 1)
+    page.locator('#jpanel .nombre').first.click()
+    if page.get_by_role('button', name='Ver la estación por dentro', exact=True).is_visible():
+        page.get_by_role('button', name='Ver la estación por dentro', exact=True).click()
+    else:
+        page.locator('#jpanel').get_by_role('button', name='Cerrar', exact=True).click()
+    page.evaluate('Q.mapa.repintar()')
+    shot('estacion')
+    page.get_by_role('button', name='← Volver al mapa', exact=True).click()
+    page.get_by_role('button', name='Trenes', exact=True).click()
+    page.locator('#jpanel .tren').first.click()
+    page.get_by_role('button', name='Ver el tren por dentro', exact=True).click()
+    page.evaluate('Q.mapa.repintar()')
+    check('Interior del tren sin panel superpuesto', not page.locator('#jpanel').is_visible())
+    shot('tren')
+    page.get_by_role('button', name='← Volver al mapa', exact=True).click()
+    page.keyboard.press('Escape')
+    page.keyboard.press('Escape')
+    page.locator('#jefe').get_by_role('button', name='?', exact=True).click()
+    before = page.evaluate('Q.juego.sim.t')
+    page.keyboard.press('Space')
+    page.evaluate('Q.mapa.extra.paso(1)')
+    check('Ayuda mantiene pausa con teclado', page.evaluate('Q.juego.sim.t') == before)
+    page.get_by_role('button', name='Seguir', exact=True).click()
+    page.evaluate('''() => { const s=Q.juego.sim; for(let n=0;n<5000&&!s.terminado;n++) {s.avanzar(5); if(s.decisiones.length)s.decidir(s.decisiones[0],0);} if(!s.terminado)throw Error('Día no termina'); Q.mapa.extra.paso(0); }''')
+    check('Informe al terminar', page.locator('#jfin').is_visible() and page.evaluate('Q.juego.sim === null'))
+    shot('informe')
+    saved = page.evaluate("localStorage.getItem('quito-jefe-de-linea')")
+    check('Día guardado', json.loads(saved)['partidas'][0]['dias'][2] is not None)
+    load('juego')
+    check('Continuar tras recargar', page.get_by_role('button', name='Continuar', exact=True).count() == 1)
+    page.get_by_role('button', name='Continuar', exact=True).click()
+    campaign_before = page.evaluate('JSON.stringify({caja:Q.juego.partida.caja,maquinas:Q.juego.partida.maquinas,estrellas:Q.juego.partida.estrellas,horario:Q.juego.partida.horario})')
+    page.get_by_role('button', name='Inducción', exact=True).click()
+    check('Tutorial visible', page.locator('#jtut').is_visible())
+    visited = set()
+    for action in range(100):
+        if page.evaluate('Q.juego.sim === null'):
+            break
+        step = int(page.locator('#jtut .zona').text_content().split('·')[1].strip().split(' ')[0])
+        visited.add(step)
+        if step in (1, 2, 7, 12, 14, 21):
+            page.locator('#jtut').get_by_role('button', name='Siguiente', exact=True).click()
+        elif step == 3:
+            page.get_by_role('button', name='×1', exact=True).click()
+        elif step in (4, 8, 19, 22):
+            page.evaluate("""() => { const label=document.querySelector('#jtut .zona').textContent; for(let i=0;i<180&&Q.juego.sim&&document.querySelector('#jtut .zona').textContent===label;i++) Q.mapa.extra.paso(1); }""")
+        elif step == 5:
+            page.get_by_role('button', name='Horario', exact=True).click()
+        elif step == 6:
+            page.locator('#jpanel .franja .menos').nth(1).click()
+        elif step == 9:
+            point = page.evaluate("""() => { const r=document.querySelector('#view').getBoundingClientRect(), x=Q.W<300?10:Q.W<480?18:30; return {x:r.left+x*r.width/Q.W,y:r.top+(Q.H-Q.mapa.extra.alto+28)*r.height/Q.H}; }""")
+            page.mouse.click(point['x'], point['y'])
+        elif step == 10:
+            page.locator('#jest .vmas').click()
+        elif step in (11, 17):
+            page.locator('#jest .dentro').click()
+            if step == 11:
+                shot('tutorial')
+        elif step in (13, 18):
+            page.get_by_role('button', name='← Volver al mapa', exact=True).click()
+        elif step == 15:
+            page.locator('#jefe button:enabled').filter(has_text='Tren extra').first.click()
+        elif step == 16:
+            if not page.locator('#jpanel.trenes').is_visible():
+                page.get_by_role('button', name='Trenes', exact=True).click()
+            page.locator('#jpanel .tren:not(.quieto)').first.click()
+        elif step == 20:
+            page.locator('#jdec .opcion').first.click()
+        else:
+            raise AssertionError('Paso de tutorial desconocido: ' + str(step))
+    check('Inducción: 22 pasos completados', visited == set(range(1, 23)) and page.evaluate('Q.juego.sim === null'))
+    check('Inducción conserva recursos de campaña', campaign_before == page.evaluate('JSON.stringify({caja:Q.juego.partida.caja,maquinas:Q.juego.partida.maquinas,estrellas:Q.juego.partida.estrellas,horario:Q.juego.partida.horario})'))
+    check('Inducción terminada queda guardada', page.evaluate("JSON.parse(localStorage.getItem('quito-jefe-de-linea')).partidas[0].tutorial"))
+    saved = page.evaluate("localStorage.getItem('quito-jefe-de-linea')")
+    load()
+    page.locator('#jugar').click()
+    page.wait_for_function('Q.juego.sim && !document.body.classList.contains("entrando")')
+    initial = page.evaluate('Q.juego.sim.t')
+    page.wait_for_function('(t) => Q.juego.sim.t > t + 1', arg=initial)
+    check('Jugar inicia directamente el día guardado y su reloj', page.locator('body.dentro').count() == 1 and not page.locator('#jfin').is_visible())
+    check('Jugar conserva el progreso guardado', page.evaluate("localStorage.getItem('quito-jefe-de-linea')") == saved and page.evaluate("document.querySelector('#jefe strong').textContent.startsWith(CAMPANA.DIAS[Q.juego.partida.dia].n)"))
+    page.get_by_role('button', name='Pausar', exact=True).click()
+    before = page.evaluate('Q.juego.sim.t')
+    page.evaluate('Q.mapa.extra.paso(1)')
+    check('Botón Pausar detiene el tiempo e indica En pausa', page.evaluate('Q.juego.sim.t') == before and page.locator('.jestado').inner_text() == 'En pausa')
+    page.get_by_role('button', name='Reanudar', exact=True).click()
+    page.wait_for_function('(t) => Q.juego.sim.t > t', arg=before)
+    check('Botón Reanudar vuelve a mover el reloj', 'En marcha' in page.locator('.jestado').inner_text())
+    page.get_by_role('button', name='Pausar', exact=True).click()
+    page.get_by_label('Ver estación', exact=True).select_option('6')
+    check('Selector abre San Francisco', page.locator('#jest h2').inner_text() == 'San Francisco' and page.locator('body.dentro').count() == 1)
+    page.get_by_role('button', name='Gestionar estación', exact=True).click()
+    check('Gestión accesible desde el interior', page.locator('#jest').is_visible())
+    page.locator('#jest').get_by_role('button', name='Cerrar', exact=True).click()
+    check('Cerrar detalles conserva el interior', not page.locator('#jest').is_visible() and page.locator('body.dentro').count() == 1)
+    shot('san-francisco')
+    page.get_by_role('button', name='Ver mapa', exact=True).click()
+    check('Mapa accesible con un botón', page.locator('body.dentro').count() == 0)
+    page.get_by_role('button', name='Ver interior', exact=True).click()
+    check('Volver al interior conserva la estación', page.locator('body.dentro').count() == 1 and page.get_by_label('Ver estación', exact=True).input_value() == '6')
+    load('shot&juego=1&jdia=3&jt=330')
+    page.evaluate('''() => { const s=Q.juego.sim; while(!s.terminado && !s.decisiones.length) s.avanzar(1); Q.mapa.extra.paso(0); }''')
+    check('Decisión visible', page.locator('#jdec').is_visible())
+    shot('decision')
+    page.keyboard.press('Space')
+    before = page.evaluate('Q.juego.sim.t')
+    page.evaluate('Q.mapa.extra.paso(1)')
+    check('Decisión bloquea el reloj', page.evaluate('Q.juego.sim.t') == before)
+    page.locator('#jdec .opcion').first.click()
+    check('Decisión se resuelve', not page.locator('#jdec').is_visible())
+    for day in range(7):
+        load(f'shot&juego=1&jdia={day}&jplan=real&jfin=1')
+        check(f'Día {day + 1}: simulación e informe completos', page.locator('#jfin').is_visible() and page.evaluate('Q.juego.sim === null'))
+        check(f'Día {day + 1}: prueba no cambia el guardado', page.evaluate("localStorage.getItem('quito-jefe-de-linea')") == saved)
+    for width, height in [(390, 844), (768, 1024), (1440, 900)]:
+        page.set_viewport_size({'width': width, 'height': height})
+        load()
+        page.locator('#jugar').click()
+        page.wait_for_function('Q.juego.sim && !document.body.classList.contains("entrando") && Q.juego.sim.t > Q.juego.sim.abre + 1')
+        check(f'Inicio directo usable a {width}px', page.locator('body.dentro').count() == 1 and not page.locator('#jest').is_visible() and page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+        if width == 390:
+            check('HUD móvil ocupa menos del 25% de la altura', page.locator('#jefe').bounding_box()['height'] < height * .25)
+            page.get_by_role('button', name='Más', exact=True).click()
+            check('Más muestra refuerzos, ayuda y salida en móvil', page.get_by_role('button', name='Salir', exact=True).is_visible() and page.get_by_role('button', name='Tren extra ▸', exact=True).is_visible())
+            page.get_by_role('button', name='Menos', exact=True).click()
+        shot(f'inicio-{width}')
+        load('shot&juego=1&jdia=0&jt=450&jpanel=horario')
+        page.locator('#jpanel .menos').nth(1).click()
+        box = page.locator('#jpanel').bounding_box()
+        check(f'Panel usable a {width}px', box['x'] >= 0 and box['x'] + box['width'] <= width and box['height'] > 120)
+        shot(f'horario-{width}')
+    fresh = browser.new_page(viewport={'width': 390, 'height': 844})
+    fresh.on('pageerror', lambda e: errors.append(str(e)))
+    fresh.goto(args.url)
+    fresh.wait_for_function('!!Q.juego')
+    bounds = fresh.locator('#jugar').bounding_box()
+    check('Jugar está dentro de la pantalla móvil', bounds['x'] >= 0 and bounds['x'] + bounds['width'] <= 390)
+    fresh.locator('#jugar').click()
+    fresh.wait_for_function('Q.juego.sim && !document.body.classList.contains("entrando")')
+    check('Primera visita: el lunes abre con la guía del Puesto Central', fresh.locator('#jtut').is_visible())
+    fresh.get_by_role('button', name='Saltar la guía', exact=True).click()
+    fresh.wait_for_function('Q.juego.sim.t > Q.juego.sim.abre + 1')
+    check('Primera visita: Jugar crea partida y arranca sin menús', fresh.locator('body.dentro').count() == 1 and not fresh.locator('#jfin').is_visible() and fresh.evaluate("JSON.parse(localStorage.getItem('quito-jefe-de-linea')).partidas[0].dia === 0"))
+    check('Selector tiene las 15 estaciones con nombre', fresh.get_by_label('Ver estación', exact=True).locator('option').count() == 15 and all(fresh.get_by_label('Ver estación', exact=True).locator('option').all_text_contents()))
+    fresh.close()
+    check('Sin errores JavaScript', not errors)
+    (out / 'resultados.json').write_text(json.dumps({'checks': results, 'errors': errors, 'findings': findings, 'browser': browser.version}, ensure_ascii=False, indent=2) + '\n')
+    print(json.dumps({'passed': len(results), 'errors': errors, 'findings': findings, 'browser': browser.version}, ensure_ascii=False))
+    browser.close()

@@ -1,0 +1,384 @@
+/* El mapa real: el dibujo ocupa toda la ventana y lo demás flota encima, lo justo. */
+:root {
+    --panel: rgba(11, 16, 32, .88);
+    --line: #2C3A66;
+    --text: #E6ECF7;
+    --dim: #8FA3D9;
+    --accent: #FF8A3D;
+    --gold: #FFE500;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; overflow: hidden; background: #05070F; }
+body { color: var(--text); font: 13px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+#stage { position: fixed; inset: 0; overflow: hidden; }
+
+/* El tamaño exacto lo pone mapa.js, en píxeles enteros. */
+#view {
+    position: absolute; left: 0; top: 0; display: block;
+    image-rendering: crisp-edges; image-rendering: pixelated;
+    cursor: grab; touch-action: none; user-select: none;
+}
+
+#hud, #barra, #controls, #card, #places, #creditos, #volver { position: absolute; }
+
+#hud { left: 8px; top: 8px; padding: 4px 9px 5px; pointer-events: none; background: var(--panel); border: 2px solid var(--line); border-radius: 3px; }
+#hud h1 { display: inline; margin: 0 8px 0 0; font-size: 18px; letter-spacing: .14em; text-transform: uppercase; color: #fff; }
+#clock { display: inline; margin: 0; color: var(--dim); }
+#clock strong { color: #fff; font-size: 14px; }
+#pos { margin: 1px 0 0; min-height: 16px; font-size: 11px; color: #fff; }
+
+#barra { right: 12px; top: 8px; display: flex; gap: 5px; align-items: center; }
+#barra button { flex: 0 0 auto; background: var(--panel); }
+#barra button.on { background: var(--accent); }
+#jugar { background: var(--gold) !important; border-color: #FFF3A0 !important; color: #1A0E04 !important; font-weight: 700; }
+#jentrada[hidden] { display: none; }
+#jentrada { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; touch-action: none; }
+#jentrada .velo { position: absolute; inset: 0; background: #0B1020; pointer-events: none; }
+#jentrada .rotulo { position: absolute; bottom: 18%; margin: 0 16px; padding: 10px 16px; background: var(--panel); border-left: 3px solid var(--gold); color: #fff; text-align: center; font-size: 16px; }
+#jentrada button { position: absolute; right: 16px; bottom: 20px; }
+body.entrando #stage > :not(#view):not(#jentrada) { visibility: hidden; }
+body.entrando #view { will-change: transform; pointer-events: none; }
+#nivel {
+    padding: 5px 8px; min-width: 150px; text-align: center; background: var(--panel); border: 2px solid var(--line); border-radius: 3px;
+    font-size: 11px; color: var(--gold); text-transform: uppercase; letter-spacing: .04em;
+}
+#acercar, #alejar { width: 30px; font-size: 15px; line-height: 1; padding: 4px 0; }
+
+#controls {
+    right: 12px; top: 46px; width: 292px; padding: 10px;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 4px;
+    display: grid; gap: 7px;
+}
+#controls[hidden] { display: none; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.row label { color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.row input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+.row input[type=search] {
+    flex: 1; min-width: 0; font: inherit; font-size: 12px; color: var(--text);
+    background: #0E1630; border: 2px solid var(--line); border-radius: 3px; padding: 5px 7px;
+}
+.row input[type=search]::placeholder { color: var(--dim); }
+.row input[type=search]:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.row input[type=search].nada { border-color: #D62828; }
+.ayuda { margin: 2px 0 0; color: var(--dim); font-size: 10.5px; line-height: 1.5; }
+
+button, .boton {
+    font: inherit; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; text-align: center; text-decoration: none;
+    color: var(--text); background: #16203F; border: 2px solid var(--line); border-radius: 3px;
+    padding: 5px 7px; cursor: pointer; flex: 1; white-space: nowrap;
+}
+button:hover, .boton:hover { border-color: var(--dim); }
+button:focus-visible, .boton:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+button:disabled { opacity: .4; cursor: default; }
+button.on { background: var(--accent); border-color: #FFC08F; color: #1A0E04; font-weight: 700; }
+
+/* Los lugares: una sola fila que se desliza, agrupada por zona. */
+#places {
+    left: 0; right: 0; bottom: 0; padding: 5px 8px 6px;
+    display: flex; gap: 5px; align-items: center;
+    overflow-x: auto; scrollbar-width: none;
+    background: linear-gradient(to top, rgba(5, 7, 15, .9), rgba(5, 7, 15, .55));
+}
+#places::-webkit-scrollbar { display: none; }
+#places button { flex: 0 0 auto; background: var(--panel); padding: 4px 7px; }
+#places button.visto { border-color: #7A6E1E; color: #FFF3A0; }
+#places button.visto::before { content: "✓ "; color: var(--gold); }
+#places button.on { background: var(--gold); border-color: #FFF3A0; color: #1A0E04; }
+#places button.on::before { color: #1A0E04; }
+#places .zona { flex: 0 0 auto; margin-left: 8px; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+#places .cuenta { flex: 0 0 auto; padding: 4px 6px; color: var(--gold); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+
+/* La ficha: datos arriba, historia abajo, con su propio desplazamiento. */
+#card {
+    left: 12px; top: 56px; width: min(390px, calc(100% - 24px)); max-height: calc(100% - 112px);
+    padding: 12px 14px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+    background: var(--panel); border: 2px solid var(--gold); border-radius: 4px;
+}
+#card[hidden] { display: none; }
+#card .zona { margin: 0 26px 2px 0; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+#card h2 { margin: 0 26px 2px 0; font-size: 16px; line-height: 1.25; color: var(--gold); }
+#card .sub { margin: 0 0 9px; color: var(--accent); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+#card .datos { margin: 0 0 10px; display: flex; flex-wrap: wrap; gap: 5px; }
+#card .datos div { padding: 4px 7px; background: #0E1630; border: 1px solid var(--line); border-radius: 3px; }
+#card .datos dt { color: var(--dim); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+#card .datos dd { margin: 0; color: #fff; font-size: 12px; }
+#card .texto p { margin: 0 0 9px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px; line-height: 1.55; }
+#card .texto .curiosidad { padding: 7px 9px; background: rgba(255, 229, 0, .08); border-left: 3px solid var(--gold); font-style: italic; }
+#card .sello { margin: 2px 0 0; color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+#card .sello.nuevo { color: var(--gold); font-weight: 700; }
+#card .cerrar { float: right; position: sticky; top: 0; margin: -4px -6px 0 6px; flex: none; width: 24px; padding: 1px 0; font-size: 15px; }
+
+#creditos { right: 8px; bottom: 40px; margin: 0; font-size: 9.5px; color: rgba(230, 236, 247, .75); text-shadow: 0 1px 0 #000, 0 0 3px #000; pointer-events: none; }
+#volver { display: none; right: 8px; top: 8px; flex: none; opacity: .35; background: var(--panel); }
+#volver:hover { opacity: 1; }
+
+/* «Solo el mapa»: desaparece todo menos el dibujo y el crédito de los datos. */
+body.limpio #hud, body.limpio #barra, body.limpio #controls, body.limpio #places { display: none; }
+body.limpio #creditos { bottom: 6px; }
+body.limpio #volver { display: block; }
+
+@media (max-width: 760px) {
+    #hud h1 { font-size: 14px; }
+    #pos { display: none; }
+    #nivel { min-width: 0; font-size: 0; padding: 0; border: 0; }
+    #controls { width: min(292px, calc(100% - 24px)); }
+    button, .boton { font-size: 10px; padding: 4px 5px; }
+}
+
+/* ───────────── Jefe de línea: el juego ───────────── */
+body.jugando #hud, body.jugando #places, body.jugando #card, body.jugando #jugar, body.jugando #controls { display: none; }
+body.jugando #creditos { bottom: calc(var(--tira, 130px) + 4px); opacity: .5; }      /* encima de la línea, no sobre sus rótulos */
+#jefe, #jhor, #jest, #javisos, #jfin { position: absolute; }
+#jefe[hidden], #jhor[hidden], #jest[hidden], #jfin[hidden] { display: none; }
+
+#jefe { left: 8px; top: 8px; padding: 6px 9px 7px; background: var(--panel); border: 2px solid var(--line); border-radius: 3px; display: grid; gap: 5px; max-width: calc(100% - 430px); }
+#jefe .j1, #jefe .j2, #jefe .j3 { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+#jefe .j1 strong { color: var(--gold); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+#jefe .hora { color: #fff; font-size: 16px; font-weight: 700; }
+#jefe .j2 { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+#jefe .j2 b { color: #fff; font-size: 13px; }
+#jefe .rojo, #jfin .rojo { color: #FF6B7D !important; }
+#jefe .jb { position: relative; width: 110px; height: 9px; background: #0E1630; border: 1px solid var(--line); }
+#jefe .jb i { display: block; height: 100%; background: #3DDC84; }
+#jefe .jb i.regular { background: #F2C200; }
+#jefe .jb i.mal { background: #E0314F; }
+#jefe .jb em { position: absolute; top: -3px; width: 2px; height: 13px; background: #fff; }
+#jefe button { flex: 0 0 auto; padding: 4px 7px; }
+#jefe .jvel { display: inline-flex; gap: 3px; margin-left: auto; }
+#jefe .jvel button { min-width: 30px; }
+#jefe .jmas { display: none; }
+body.jugando #partidas { display: none; }
+#jefe .jestado { font-size: 11px; color: #82E6B0; }
+#jefe .jestado.pausa { color: var(--gold); }
+#jefe .jvista { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border-top: 1px solid var(--line); padding-top: 5px; }
+#jefe .jvista select { min-width: 100px; max-width: 180px; flex: 1; padding: 4px; background: #0E1630; color: #fff; border: 1px solid var(--line); font: inherit; }
+
+#jhor { right: 12px; top: 46px; width: 318px; padding: 10px; background: var(--panel); border: 2px solid var(--line); border-radius: 4px; }
+#jhor h3, #jfin h3 { margin: 0 0 4px; font-size: 12px; color: var(--gold); text-transform: uppercase; letter-spacing: .08em; }
+.nota { margin: 0 0 6px; color: var(--dim); font-size: 10.5px; line-height: 1.45; text-transform: none; letter-spacing: 0; }
+#jhor .franja { display: grid; grid-template-columns: 1fr 26px 118px 26px; gap: 1px 5px; align-items: center; padding: 4px 5px; border-left: 3px solid transparent; }
+#jhor .franja .nombre { font-size: 11.5px; color: #fff; grid-column: 1; }
+#jhor .franja .horas { grid-column: 1; grid-row: 2; font-size: 10px; color: var(--dim); }
+#jhor .franja button { grid-row: 1 / 3; padding: 3px 0; font-size: 14px; line-height: 1; }
+#jhor .franja .cada { grid-row: 1 / 3; text-align: center; font-size: 11px; color: var(--gold); }
+#jhor .franja .cada.falta { color: #FF6B7D; }
+#jhor .franja.ahora { border-left-color: var(--accent); background: rgba(255, 138, 61, .12); }
+#jhor .franja.pasada { opacity: .45; }
+#jhor .cerrar { margin-top: 6px; width: 100%; }
+
+#jest { left: 8px; top: 112px; width: min(340px, calc(100% - 16px)); padding: 10px 12px; background: var(--panel); border: 2px solid var(--gold); border-radius: 4px; }
+#jest .zona, #jfin .zona { margin: 0 26px 2px 0; color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+#jest h2, #jfin h2 { margin: 0 26px 7px 0; font-size: 16px; line-height: 1.25; color: var(--gold); }
+#jest .cerrar { float: right; flex: none; width: 24px; padding: 1px 0; font-size: 15px; margin: -3px -5px 0 6px; }
+#jest .datos, #jfin .datos { margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+#jest .datos div, #jfin .datos div { padding: 4px 7px; background: #0E1630; border: 1px solid var(--line); border-radius: 3px; }
+#jest .datos div.mal { border-color: #E0314F; }
+#jest .datos dt, #jfin .datos dt { color: var(--dim); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+#jest .datos dd, #jfin .datos dd { margin: 0; color: #fff; font-size: 12px; }
+.fila { display: flex; flex-wrap: wrap; gap: 5px 7px; align-items: center; margin-bottom: 6px; }
+.fila .nombre { font-size: 11.5px; color: #fff; }
+.fila b { min-width: 14px; text-align: center; color: var(--gold); }
+.fila button { flex: 0 0 auto; padding: 3px 8px; }
+.fila .nota { margin: 0; flex-basis: 100%; }
+
+#javisos { left: 50%; top: 46px; transform: translateX(-50%); width: min(430px, calc(100% - 24px)); display: grid; gap: 5px; pointer-events: none; }
+#javisos .aviso { pointer-events: auto; flex: none; white-space: normal; text-align: left; text-transform: none; letter-spacing: 0; font-size: 12px; line-height: 1.4; padding: 7px 10px; background: var(--panel); border: 2px solid var(--dim); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+#javisos .aviso.mal { border-color: #E0314F; }
+#javisos .aviso.bien { border-color: #3DDC84; }
+
+#jfin { inset: 0; display: grid; place-items: center; padding: 12px; background: rgba(5, 7, 15, .55); overflow-y: auto; }
+#jfin .caja { width: min(560px, 100%); max-height: calc(100vh - 24px); overflow-y: auto; padding: 16px 18px; background: var(--panel); border: 2px solid var(--gold); border-radius: 4px; scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+#jfin h2 { font-size: 20px; }
+#jfin .texto, #jfin .consejo { margin: 0 0 9px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px; line-height: 1.55; }
+#jfin .consejo { padding: 7px 9px; background: rgba(255, 229, 0, .08); border-left: 3px solid var(--gold); }
+#jfin .estrellas { margin: -2px 0 9px; font-size: 26px; letter-spacing: .12em; color: var(--gold); line-height: 1; }
+#jfin .cuentas { width: 100%; margin: 0 0 10px; border-collapse: collapse; font-size: 12px; }
+#jfin .cuentas td { padding: 3px 0; border-bottom: 1px solid var(--line); }
+#jfin .cuentas td:last-child { text-align: right; color: #fff; }
+#jfin .cuentas .total td { border-bottom: 0; padding-top: 6px; font-weight: 700; color: var(--gold); font-size: 13px; }
+#jfin .dias { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin: 0 0 10px; }
+#jfin .dia { display: grid; gap: 1px; padding: 6px 4px; white-space: normal; text-transform: none; letter-spacing: 0; }
+#jfin .dia strong { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+#jfin .dia span { font-size: 10px; opacity: .85; }
+#jfin .dia em { font-style: normal; color: var(--gold); letter-spacing: .1em; }
+#jfin .dia.on em { color: #1A0E04; }
+#jfin .tienda { margin: 4px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+#jfin .tienda .fila { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; }
+#jfin .tienda .fila .nota { grid-column: 1; }
+#jfin .tienda .fila button { grid-column: 2; grid-row: 1 / 3; min-width: 84px; }
+#jfin .acciones { display: flex; flex-wrap: wrap; gap: 6px; }
+
+@media (max-width: 900px) {
+    #jefe { max-width: calc(100% - 16px); top: 44px; }
+    #jhor { top: auto; bottom: 150px; right: 8px; width: min(318px, calc(100% - 16px)); }
+    #jest { top: 150px; }
+    #jfin .dias { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* Dentro de una estación no hay mapa que mover ni acercar. */
+body.dentro #jest { left: auto; right: 12px; top: 46px; }
+body.dentro #jhor { display: none; }
+body.dentro #vista, body.dentro #alejar, body.dentro #nivel, body.dentro #acercar { display: none; }
+body.dentro #view { cursor: default !important; }
+#jest .dentro { width: 100%; margin: 0 0 8px; }
+
+/* Paneles de la campaña: por encima del lienzo y con espacio para la línea. */
+#jpanel, #jtut, #jdec { position: absolute; }
+#jpanel[hidden], #jtut[hidden], #jdec[hidden] { display: none; }
+#jefe { z-index: 4; width: min(660px, calc(100% - 450px)); max-width: none; }
+#barra { z-index: 5; }
+#jefe .jreto { margin: 0; font-size: 11px; color: var(--dim); }
+#jpanel { z-index: 6; right: 12px; top: 48px; width: 392px; max-width: calc(100% - 24px); max-height: calc(100dvh - 200px); overflow-y: auto; padding: 12px; background: var(--panel); border: 2px solid var(--line); border-radius: 4px; scrollbar-width: thin; }
+#jpanel header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+#jpanel h3 { margin: 0; color: var(--gold); font-size: 14px; }
+#jpanel .cerrar { flex: none; font-size: 18px; padding: 0 8px; }
+#jpanel .franja { display: grid; grid-template-columns: 28px 1fr 28px; gap: 4px; padding: 7px; border-left: 3px solid transparent; border-bottom: 1px solid var(--line); }
+#jpanel .franja .nombre, #jpanel .franja .horas, #jpanel .prob { grid-column: 1 / -1; }
+#jpanel .franja .nombre { color: #fff; font-size: 12px; }
+#jpanel .franja .horas { color: var(--dim); font-size: 10px; }
+#jpanel .franja .cada { text-align: center; align-self: center; color: var(--gold); font-size: 11px; }
+#jpanel .franja .falta { color: #FF6B7D; }
+#jpanel .franja.ahora { border-left-color: var(--accent); background: rgba(255,138,61,.1); }
+#jpanel .franja.pasada, #jpanel .franja.fuera { opacity: .6; }
+#jpanel .prob, #jpanel .carga { display: block; height: 4px; background: #27304F; }
+#jpanel .prob i, #jpanel .carga i { display: block; height: 100%; background: #3DDC84; }
+#jpanel .carga i.regular { background: var(--accent); }
+#jpanel .carga i.mal { background: #E0314F; }
+#jpanel .bol { display: grid; grid-template-columns: 28px 24px 28px 1fr 28px; gap: 5px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+#jpanel .bol .nombre, #jpanel .bol .cola { grid-column: 1 / -1; text-align: left; }
+#jpanel .bol .nombre { white-space: normal; }
+#jpanel .bol .cola, #jpanel .bol .maq { font-size: 11px; color: var(--dim); }
+#jpanel .bol b { text-align: center; }
+#jpanel .bol .maq { text-align: right; }
+#jpanel .bol > button:not(.nombre) { padding: 4px 0; }
+#jpanel .tren { display: grid; grid-template-columns: 32px 1fr 36px; width: 100%; gap: 5px; margin: 4px 0; text-align: left; white-space: normal; text-transform: none; }
+#jpanel .tren .estado { font-size: 11px; }
+#jpanel .tren .carga { grid-column: 2; grid-row: 2; }
+#jpanel .tren .pct { grid-column: 3; grid-row: 1 / 3; align-self: center; font-size: 10px; }
+#jest { z-index: 6; top: var(--juego-hud-bottom, 175px); max-height: calc(100dvh - var(--juego-hud-bottom, 175px) - 150px); overflow-y: auto; }
+body.dentro #jest { top: var(--juego-hud-bottom, 175px); }
+#javisos { z-index: 5; top: auto; bottom: calc(var(--tira, 130px) + 32px); left: 8px; transform: none; width: min(410px, calc(100% - 16px)); }
+#jtut { z-index: 7; bottom: 145px; left: 8px; width: min(430px, calc(100% - 16px)); max-height: 35dvh; overflow-y: auto; padding: 12px; background: #0B1020; border: 2px solid var(--gold); border-radius: 4px; }
+#jtut .texto { font: 13px/1.5 system-ui, sans-serif; margin: 6px 0 10px; }
+#jtut .zona { font-size: 10px; color: var(--gold); margin: 0; }
+#jtut .acciones { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.tut-foco { outline: 2px solid var(--gold); outline-offset: 3px; }
+#stage:has(#jtut:not([hidden])) #javisos { display: none; }
+#jfin, #jdec { z-index: 10; }
+#jdec { inset: 0; display: grid; place-items: center; padding: 12px; background: rgba(5,7,15,.8); overflow-y: auto; }
+#jdec .caja { width: min(560px, 100%); max-height: calc(100dvh - 24px); overflow-y: auto; padding: 18px; border: 2px solid var(--gold); border-radius: 4px; background: #0B1020; }
+#jdec h2 { margin: 6px 0 12px; color: var(--gold); }
+#jdec .texto, #jdec .consejo { font: 14px/1.55 system-ui, sans-serif; }
+#jdec .zona { color: var(--dim); font-size: 11px; }
+#jdec .opcion { display: grid; gap: 5px; width: 100%; margin: 8px 0 0; padding: 12px; text-align: left; white-space: normal; text-transform: none; letter-spacing: normal; }
+#jdec .opcion span { font: 13px/1.4 system-ui, sans-serif; color: var(--dim); }
+#jdec .opcion:hover span { color: #fff; }
+#jfin .huecos { display: grid; gap: 8px; margin: 12px 0; }
+#jfin .hueco { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); }
+#jfin .hueco.on { border-color: var(--gold); }
+#jfin .hueco em { color: var(--dim); font-style: normal; }
+#jfin .dias { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+#jfin .parte { padding-left: 18px; font: 13px/1.6 system-ui, sans-serif; }
+body.jugando #controls:not([hidden]) { display: grid; z-index: 12; max-height: calc(100dvh - 70px); overflow-y: auto; }
+@media (max-width: 900px) {
+    #jefe { width: calc(100% - 16px); top: 44px; }
+    #jpanel { top: var(--juego-hud-bottom, 220px); max-height: calc(100dvh - var(--juego-hud-bottom, 220px) - 145px); }
+    #jfin .dias { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+    #jefe { gap: 4px; padding: 5px 7px; }
+    #jefe .jmas { display: inline-block; }
+    #jefe:not(.mas-controles) .j3 .secundario:not(.tut-foco) { display: none; }
+    #jefe .j1, #jefe .j2, #jefe .j3 { gap: 4px 6px; }
+    #jefe .j1 strong { font-size: 11px; }
+    #jefe .jreto { font-size: 10px; }
+    #jefe button { padding: 5px; font-size: 10px; }
+    #jefe .jb { width: 70px; }
+    #jpanel, #jest, body.dentro #jest { left: 8px; right: 8px; width: auto; max-width: none; }
+}
+/* Durante la partida, Opciones solo cambia el audio; la simulación controla hora y clima. */
+body.jugando #controls > .row:not(:has(#sound, #volume)),
+body.jugando #controls > .ayuda,
+body.jugando #controls #fiestas { display: none; }
+@media (max-width: 720px) {
+    #stage:has(#jpanel:not([hidden])) #javisos { display: none; }
+}
+
+/* ───────────── Jefe de línea: informes, tienda, turno sin fin y pantallas táctiles ───────────── */
+#jefe [hidden], #jest [hidden], #jpanel [hidden] { display: none !important; }
+#jefe .jreto.bien { color: #82E6B0; }
+#jest .zona.mal { color: #FF6B7D; }
+#jpanel .bol.regular .cola { color: var(--gold); }
+#jpanel .bol.mal .cola, #jpanel .maq.mal { color: #FF6B7D; }
+#jpanel .bol.cerrada { opacity: .55; }
+#jpanel .tren.quieto { opacity: .6; }
+#jpanel .tren.mal { border-color: #E0314F; }
+button.chico { flex: 0 0 auto; }
+#jfin h2.grande { font-size: 26px; letter-spacing: .05em; text-transform: uppercase; }
+#jfin .reto { margin: 0 0 9px; padding: 6px 9px; border: 1px dashed var(--line); border-radius: 3px; font: 12.5px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#jfin .reto.hecho { border-style: solid; border-color: var(--gold); color: #FFF3A0; }
+#jfin .nuevo { margin: 0 0 9px; padding: 7px 9px; background: rgba(61, 220, 132, .1); border-left: 3px solid #3DDC84; font: 13px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#jfin .nuevo strong { color: #82E6B0; }
+#jfin .consejo button { margin-top: 6px; }
+#jfin .tienda .fila.hecha { opacity: .6; }
+#jfin .tienda .fila.estreno .nombre { color: #82E6B0; }
+#jfin .dia.sinfin strong { font-size: 17px; line-height: .8; }
+/* El ánimo hora por hora: una barra por hora y una raya en la meta. */
+#jfin .grafico { position: relative; display: flex; align-items: flex-end; gap: 2px; height: 58px; margin: 2px 0 20px; border-bottom: 1px solid var(--line); }
+#jfin .grafico span { position: relative; flex: 1; height: 100%; display: flex; align-items: flex-end; }
+#jfin .grafico i { display: block; width: 100%; background: #3DDC84; }
+#jfin .grafico i.regular { background: #F2C200; }
+#jfin .grafico i.mal { background: #E0314F; }
+#jfin .grafico small { position: absolute; left: 0; bottom: -14px; font-size: 9px; color: var(--dim); }
+#jfin .grafico em { position: absolute; left: 0; right: 0; height: 1px; background: #fff; opacity: .65; pointer-events: none; }
+@media (min-width: 901px) { #jfin .dias.ocho { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+@media (max-width: 900px) {
+    #jfin .dias { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    #jfin .dia span { display: none; }
+    #jfin .caja, #jdec .caja { padding: 14px 12px; }
+    #jfin .tienda .fila { grid-template-columns: 1fr; }
+    #jfin .tienda .fila button { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+/* Con el dedo, los botones necesitan más cuerpo. */
+@media (pointer: coarse) {
+    button, .boton { min-height: 38px; }
+    #jefe button, #jefe .jvista select { min-height: 34px; }
+    #jpanel .franja button, #jpanel .bol > button:not(.nombre), #jest .fila button { min-width: 38px; min-height: 38px; }
+    #jpanel .franja { grid-template-columns: 40px 1fr 40px; }
+    #jpanel .bol { grid-template-columns: 40px 24px 40px 1fr 40px; }
+    #jfin .acciones button, #jdec .opcion { min-height: 44px; }
+}
+
+/* En el teléfono y en una tableta de pie no caben lado a lado el panel de arriba, la guía y una hoja: se apilan en ese orden, sobre la línea. */
+@media (max-width: 900px) {
+    #jtut { top: var(--juego-hud-bottom, 210px); bottom: auto; left: 8px; right: 8px; width: auto; max-height: 32dvh; padding: 8px 10px; }
+    #jtut .texto { font-size: 12.5px; line-height: 1.45; margin: 3px 0 7px; }
+    #jpanel, #jest, body.dentro #jest { top: calc(var(--juego-hud-bottom, 210px) + var(--guia, 0px)); max-height: calc(100dvh - var(--juego-hud-bottom, 210px) - var(--guia, 0px) - var(--tira, 132px) - 10px); }
+}
+
+/* El panel de arriba, en el teléfono: lo justo, para que se vea la estación. */
+@media (max-width: 480px) {
+    #jefe .jtit, #jefe .jestado, #jefe .j2 > span:nth-child(4) { display: none; }
+    #jefe .jreto { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #jefe .jvel { margin-left: auto; }
+    #jefe .jvista { padding-top: 4px; }
+}
+@media (max-width: 480px) and (pointer: coarse) { #jefe button, #jefe .jvista select { min-height: 32px; } }
+
+/* Teléfono acostado: poco alto. El panel va a la izquierda; la guía, las hojas y los avisos, a la derecha. */
+@media (max-height: 520px) {
+    #jefe { top: 8px; left: 8px; width: min(52vw, 430px); max-height: calc(100dvh - var(--tira, 88px) - 14px); overflow-y: auto; padding: 5px 7px; gap: 4px; }
+    #jefe .jtit, #jefe .j2 > span:nth-child(4) { display: none; }
+    #jefe .jreto { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #jtut { top: 46px; bottom: auto; left: auto; right: 8px; width: min(44vw, 400px); max-height: 36dvh; padding: 8px 10px; }
+    #jtut .texto { font-size: 12.5px; line-height: 1.45; margin: 3px 0 7px; }
+    #jpanel, #jest, body.dentro #jest { top: calc(46px + var(--guia, 0px)); left: auto; right: 8px; width: min(44vw, 400px); max-width: none; max-height: calc(100dvh - 46px - var(--guia, 0px) - var(--tira, 88px) - 10px); }
+    #javisos { left: auto; right: 8px; width: min(44vw, 400px); }
+    #stage:has(#jpanel:not([hidden])) #javisos, #stage:has(#jest:not([hidden])) #javisos { display: none; }
+    #jfin .caja, #jdec .caja { padding: 12px; }
+}
+@media (max-height: 520px) and (pointer: coarse) { #jefe button, #jefe .jvista select { min-height: 32px; } }
+@media (max-height: 520px) { body.jugando #vista, body.jugando #nivel { display: none; } }
