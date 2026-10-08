@@ -8,11 +8,12 @@ La base ya permite un juego de gestión reconocible: ajustar frecuencias y bolet
 
 La prioridad inmediata es consolidar el recorrido del jugador nuevo y el guardado, antes de sumar contenido. Las pruebas automáticas verifican funcionamiento; para valorar dificultad y diversión hacen falta partidas de personas nuevas.
 
+> **Actualización.** El turno en curso ya se recupera al recargar (bitácora determinista, con versión: un turno de una versión anterior se descarta con aviso). Después de esta revisión se agregaron el horario de fin de semana con sugerencia, el informe «por qué salió así», las misiones, las consecuencias de un día al siguiente, la dificultad y el crecimiento realista del turno sin fin; el balance de la semana se comprueba con `node tools/prueba-simulacion.cjs`. También se corrigió que repetir un día después de cerrada la semana pudiera dar la partida por perdida, y que el contador de gente que ve pasar trenes llenos contara a la misma persona varias veces.
+
 ## Hallazgos pendientes
 
 | Prioridad | Hallazgo | Reproducción / consecuencia | Área |
 |---|---|---|---|
-| Media | No se recupera el turno en curso | Recargar durante un día descarta el estado de trenes, pasajeros y decisiones. Se conserva el progreso guardado al cerrar días y comprar mejoras. Hace falta un guardado completo si se quiere continuar exactamente donde se dejó. | Guardado |
 | Media | Los controles ocupan gran parte del móvil | A 390 px, abrir Horario deja poco mapa visible. El panel ya tiene desplazamiento y cierre utilizables; conviene compactar indicadores y probar una bandeja inferior. | Interfaz |
 | Media | Falta validar dificultad con jugadores | Se simularon los siete días con un plan fijo y la primera opción de cada decisión. Esto no demuestra que todas las estrategias estén equilibradas ni que el aprendizaje sea claro. | Diseño de juego |
 

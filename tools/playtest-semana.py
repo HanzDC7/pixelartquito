@@ -57,6 +57,9 @@ with sync_playwright() as p:
     ok('Menú: tres partidas vacías', boton('Nueva partida').count() == 3)
     foto('01-titulo')
     pulsar(boton('Nueva partida').first)
+    ok('Nueva partida: se elige entre tres dificultades', page.locator('#jfin .dificultad').count() == 3)
+    foto('01b-dificultad')
+    pulsar(page.locator('#jfin .dificultad', has_text='Normal'))
     ok('Semana: siete días, solo el lunes abierto', page.locator('#jfin .dia').count() == 7 and page.locator('#jfin .dia:enabled').count() == 1)
     ok('Lunes anuncia lo nuevo', 'Nuevo hoy: el horario' in page.locator('#jfin .nuevo').inner_text())
     ok('Tienda cerrada el lunes', 'La tienda abre mañana' in page.locator('#jfin .tienda').inner_text() and page.locator('#jfin .tienda button').count() == 0)
@@ -92,6 +95,7 @@ with sync_playwright() as p:
     ok('Informe anuncia la tienda', 'Nuevo en la tienda' in page.locator('#jfin').inner_text())
     ok('El primer día da su logro', page.locator('#jfin p.logro').count() >= 1 and 'Primer día' in page.locator('#jfin').text_content())
     ok('Gráfico del ánimo con barras', page.locator('#jfin .grafico i').count() >= 15 and page.locator('#jfin .grafico i').first.bounding_box()['height'] > 5)
+    ok('El informe explica por qué: causas con barras y consejos con estación y hora', 'Por qué salió así' in page.locator('#jfin').text_content() and page.locator('#jfin .porque .causa').count() >= 2 and ('entre las' in page.locator('#jfin .porque').text_content() or 'más de un punto' in page.locator('#jfin .porque').text_content()))
     foto('06-informe-lunes')
 
     # ── Martes: boleterías y tienda ──
@@ -101,9 +105,16 @@ with sync_playwright() as p:
     caja0 = partida()['caja']
     pulsar(page.locator('#jfin .tienda .fila', has_text='Capacitación de cajeros').locator('button'))
     ok('Comprar capacitación de cajeros', partida()['cajeros'] == 1 and partida()['caja'] == caja0 - 5000, (caja0, partida()['caja']))
+    mis = page.locator('#jfin .misiones')
+    ok('Martes: se abren las misiones, tres ofertas', mis.locator('.fila button', has_text='Aceptar').count() == 3)
+    primera = mis.locator('.fila', has_text='Aceptar').first.locator('.nombre').inner_text().split(' · ')[0]
+    pulsar(mis.locator('.fila button', has_text='Aceptar').first)
+    pulsar(page.locator('#jfin .misiones .fila button', has_text='Aceptar').first)
+    ok('Dos misiones aceptadas: ya no hay cupo', len(partida()['misiones']['activas']) == 2 and page.locator('#jfin .misiones .fila button', has_text='Aceptar').count() == 0 and 'se libera el cupo' in page.locator('#jfin .misiones').text_content())
     foto('07-semana-martes')
     pulsar(boton('Empezar el martes'))
     ok('Martes: guía de boleterías', page.locator('#jtut').is_visible() and '1 de 5' in paso() and boton('Boleterías').is_visible() and not boton('Trenes').is_visible())
+    ok('Las misiones aceptadas se ven arriba', page.locator('#jefe .jmision').count() == 2 and f'Misión: {primera}' in page.locator('#jefe').text_content())
     pulsar(boton('Siguiente', '#jtut')); pulsar(boton('Boleterías'))
     ok('Panel de boleterías con 15 estaciones', page.locator('#jpanel .bol').count() == 15 and '3 de 5' in paso())
     foto('08-martes-boleterias')
@@ -128,6 +139,7 @@ with sync_playwright() as p:
     foto('08b-turno-recuperado')
     terminar_dia([8, 5, 8, 8, 8, 5, 8], 4)
     ok('Informe del martes, y el turno a medias ya no está', partida()['estrellas'][1] >= 1 and partida()['turno'] is None, partida()['estrellas'])
+    ok('El informe cuenta cómo van las misiones', page.locator('#jfin p.mision').count() == 2 and primera in page.locator('#jfin').text_content())
 
     # ── Miércoles: trenes ──
     pulsar(page.locator('#jfin .acciones button.on')); pulsar(boton('Empezar el miércoles'))
@@ -165,14 +177,26 @@ with sync_playwright() as p:
     terminar_dia([8, 5, 8, 8, 8, 5, 5], 4)
     ok('Informe del jueves', partida()['estrellas'][3] >= 1, partida()['estrellas'])
 
-    # ── Viernes, sábado y domingo: saltando las guías ──
+    # ── Viernes y domingo: saltando las guías. El sábado, la guía del horario de fin de semana ──
     for k, nombre, horario in [(4, 'viernes', [8, 5, 8, 8, 6, 4, 8]), (5, 'sábado', [12, 12, 10, 8, 8, 6, 6]), (6, 'domingo', [12, 10, 6, 5, 6, 6, 5])]:
         pulsar(page.locator('#jfin .acciones button.on'))
         if k == 4: foto('12-semana-viernes')
+        if k == 5: ok('Sábado anuncia el horario de fin de semana', 'horario de fin de semana' in page.locator('#jfin .nuevo').inner_text())
         pulsar(boton('Empezar el ' + nombre))
         ok(f'{nombre}: guía presente', page.locator('#jtut').is_visible())
-        pulsar(boton('Saltar la guía'))
-        ok(f'{nombre}: guía saltada, reloj en marcha', not page.locator('#jtut').is_visible() and partida()['guias'][k] is True)
+        if k == 5:
+            entre_semana = partida()['horario']
+            pulsar(boton('Horario'))
+            ok('Sábado: franjas de fin de semana y botón de sugerencia resaltado', 'Tarde de paseo' in page.locator('#jpanel').text_content() and page.locator('#jpanel .sugerir.tut-foco').count() == 1 and 'fin de semana' in page.locator('#jpanel h3').text_content())
+            foto('14b-sabado-horario')
+            pulsar(page.locator('#jpanel .sugerir'))
+            ok('La sugerencia cambia el horario y se guarda aparte del de entre semana', js('Q.juego.sim.horario[0]') > 8 and partida()['horarioFinde'] == js('Q.juego.sim.horario') and partida()['horario'] == entre_semana and '3 de 3' in paso(),
+               (js('Q.juego.sim.horario'), partida()['horarioFinde'], partida()['horario'], entre_semana, paso()))
+            pulsar(boton('Siguiente', '#jtut'))
+            ok('sábado: guía terminada', not page.locator('#jtut').is_visible() and partida()['guias'][k] is True)
+        else:
+            pulsar(boton('Saltar la guía'))
+            ok(f'{nombre}: guía saltada, reloj en marcha', not page.locator('#jtut').is_visible() and partida()['guias'][k] is True)
         if k == 4:
             js('''() => { const s = Q.juego.sim; s.horario = [8, 5, 8, 8, 6, 4, 8]; s.est.forEach((e) => { e.ventanillas = 4; }); while (s.t < 16.4 * 60) { s.avanzar(5); while (s.decisiones.length) s.decidir(s.decisiones[0], 0); } Q.mapa.extra.paso(0); }''')
             ok('Granizada: tramo cortado en La Alameda', js('Q.juego.sim.tramo[1]') == 7 and js('Q.juego.sim.cerrada(12)'))
@@ -183,9 +207,15 @@ with sync_playwright() as p:
         ok(f'Informe del {nombre}', partida()['estrellas'][k] >= 1, partida()['estrellas'])
     ok('Semana completa', partida()['dia'] == 7)
     foto('15-informe-domingo')
+    # Repetir un día con la semana ya cerrada no pone en juego la partida, aunque la caja quede en rojo.
+    js('() => { Q.juego.partida.caja = -500; Q.juego.semana(0); }')
+    pulsar(boton('Empezar el lunes'))
+    terminar_dia([15, 15, 15, 15, 15, 15, 15], 0, 2)
+    ok('Repetir un día con la semana cerrada y la caja en rojo no pierde la partida', partida()['perdida'] is False)
+    js('() => { Q.juego.partida.caja = 9000; Q.juego.semana(6); }')
 
     # ── El final y el turno sin fin ──
-    pulsar(boton('Ver el final →'))
+    pulsar(boton('Ver el final'))
     ok('Final con rango y puerta al turno sin fin', page.locator('#jfin h2.grande').is_visible() and boton('Turno sin fin →').is_visible())
     foto('16-final')
     pulsar(boton('Turno sin fin →'))
@@ -204,18 +234,21 @@ with sync_playwright() as p:
     pulsar(boton('Día 9 →')); pulsar(boton('Empezar el día 9'))
     terminar_dia([15, 15, 15, 15, 15, 15, 15], 0, 9)      # a propósito, un desastre
     sf = partida()['sinfin']
+    ok('Un mal día: el informe nombra estación, horas y franja', 'entre las' in page.locator('#jfin .porque').text_content() and 'ibas cada 15 min' in page.locator('#jfin .porque').text_content())
     ok('Un día sin estrellas termina el turno y conserva el récord', sf['n'] == 8 and sf['mejor'] == 1 and 'Te relevaron' in page.locator('#jfin').inner_text(), sf)
     foto('19-relevo')
     pulsar(boton('Empezar otro turno →'))
     ok('Vuelve al día 8 con otra semilla', 'Turno sin fin · día 8' in page.locator('#jfin').inner_text())
     pulsar(boton('Trayectoria'))
-    ok('Trayectoria: los 18 logros, con varios ganados', page.locator('#jfin .logros .logro').count() == 18 and page.locator('#jfin .logros .logro.hecho').count() >= 4, page.locator('#jfin .logros .logro.hecho').count())
+    ok('Trayectoria: los 22 logros, con varios ganados', page.locator('#jfin .logros .logro').count() == 22 and page.locator('#jfin .logros .logro.hecho').count() >= 4, page.locator('#jfin .logros .logro.hecho').count())
     foto('20-trayectoria')
     pulsar(boton('Volver'))
     pulsar(boton('Menú principal'))
     ok('El menú muestra el récord', 'récord de 1 día' in page.locator('#jfin .hueco').first.inner_text(), page.locator('#jfin .hueco').first.inner_text())
     # ── Una semana que cierra en rojo se pierde ──
     pulsar(boton('Nueva partida').first)
+    pulsar(page.locator('#jfin .dificultad', has_text='Exigente'))
+    ok('Partida exigente: meta más alta y menos caja', partida_n(1)['dificultad'] == 'exigente' and partida_n(1)['caja'] == 5000)
     js("""() => { const p = Q.juego.partida, c = { ingresos: 80000, trenes: 62000, personal: 9000, fijo: 29000, imprevistos: 4000, compras: 0, ociosas: 9000 };
           p.dia = 6; p.guias = Array(7).fill(true); p.caja = -90000;
           for (let i = 0; i < 6; i++) { p.estrellas[i] = 1; p.dias[i] = { estrellas: 1, animo: 70, operativo: -24000, saldo: -24000, viajes: 190000, km: 9000, idos: 4000, premio: 0, cuentas: c }; }

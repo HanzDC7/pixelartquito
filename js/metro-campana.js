@@ -70,8 +70,8 @@ const CAMPANA = (() => {
             texto: `Una docena de vendedores se instaló en el acceso de ${NOMBRE[i]}. Venden bien, pero estorban la entrada.`,
             opciones: [
                 { t: 'Que los guardias despejen', d: 'La entrada fluye. Algunos clientes se molestan.', fx: (S) => { S.opinion(i, 55, 500); }, r: 'Los vendedores recogen sus cosas.' },
-                { t: 'Dejarlos por hoy', d: 'La gente compra su café, pero la boletería va un 30% más lenta durante cuatro horas.', fx: (S) => { S.boleteriaLenta(i, 240, 0.7); S.opinion(i, 95, 700); }, r: `Huele a empanadas de viento en ${NOMBRE[i]}.` },
-                { t: 'Reubicarlos en la plaza (−$400)', d: 'Cuesta montar los puestos, y todos contentos.', fx: (S) => { S.gasto(400); S.opinion(i, 100, 900); }, r: 'Los puestos quedan en la plaza, a la salida del Metro.', tono: 'bien' },
+                { t: 'Dejarlos por hoy', d: 'La gente compra su café, pero la boletería va un 30% más lenta durante cuatro horas. «Por hoy» suele durar más.', fx: (S) => { S.boleteriaLenta(i, 240, 0.7); S.opinion(i, 95, 700); S.manana({ s: 'vendedores', i }); }, r: `Huele a empanadas de viento en ${NOMBRE[i]}.` },
+                { t: 'Reubicarlos en la plaza (−$400)', d: 'Cuesta montar los puestos, y todos contentos. La feria se queda unos días.', fx: (S) => { S.gasto(400); S.opinion(i, 100, 900); S.manana({ s: 'feria', i, dias: 3 }); }, r: 'Los puestos quedan en la plaza, a la salida del Metro.', tono: 'bien' },
             ],
         }),
         gotera: (i) => ({
@@ -95,9 +95,9 @@ const CAMPANA = (() => {
             id: 'viral', titulo: 'Un video viral',
             texto: 'Un video de las filas y los andenes llenos tiene 200.000 vistas: «Así nos trata el Metro». Los noticieros ya lo pasan.',
             opciones: [
-                { t: 'Regalar 2.000 tarjetas cargadas (−$1.800)', d: 'Más gente pasa directo por los torniquetes hasta el fin del día, y el gesto cae bien.', fx: (S) => { S.gasto(1800); S.tarjeta = Math.min(0.92, S.tarjeta + 0.04); S.opinion(-1, 100, 2500); }, r: 'Hay fila en Quitumbe, pero para recibir la tarjeta.', tono: 'bien' },
+                { t: 'Regalar 2.000 tarjetas cargadas (−$1.800)', d: 'Más gente pasa directo por los torniquetes hasta el fin del día, y el gesto cae bien. Las tarjetas siguen sirviendo mañana.', fx: (S) => { S.gasto(1800); S.tarjeta = Math.min(0.92, S.tarjeta + 0.04); S.opinion(-1, 100, 2500); S.manana({ s: 'tarjetas' }); }, r: 'Hay fila en Quitumbe, pero para recibir la tarjeta.', tono: 'bien' },
                 { t: 'Dar la cara en la radio', d: 'No cuesta nada. Convence a medias.', fx: (S) => { S.opinion(-1, 62, 2000); }, r: 'Entrevista en la radio: «Pedimos paciencia, estamos reforzando el servicio».' },
-                { t: 'No responder', d: 'Mañana nadie se acuerda. Hoy, sí.', fx: (S) => { S.opinion(-1, 25, 2500); }, r: 'El video sigue sumando vistas.', tono: 'mal' },
+                { t: 'No responder', d: 'Hoy pega. Y los videos no se olvidan de un día para otro.', fx: (S) => { S.opinion(-1, 25, 2500); S.manana({ s: 'video' }); }, r: 'El video sigue sumando vistas.', tono: 'mal' },
             ],
         }),
         via: (i) => ({
@@ -137,7 +137,7 @@ const CAMPANA = (() => {
             texto: 'Con el día que se viene, los cajeros piden un bono por jornada pesada. Si no, trabajarán «a reglamento».',
             opciones: [
                 { t: 'Pagar el bono (−$1.500)', d: 'Las boleterías trabajan normal.', fx: (S) => { S.gasto(1500); }, r: 'Bono pagado. Las ventanillas atienden a buen ritmo.', tono: 'bien' },
-                { t: 'Negarse', d: 'Todas las boleterías atienden un 25% más lento durante tres horas.', fx: (S) => { S.boleteriaLenta(-1, 180, 0.75); }, r: 'Los cajeros cuentan cada moneda dos veces.', tono: 'mal' },
+                { t: 'Negarse', d: 'Todas las boleterías atienden un 25% más lento durante tres horas. El sindicato no se va a quedar ahí.', fx: (S) => { S.boleteriaLenta(-1, 180, 0.75); S.manana({ s: 'reglamento' }); }, r: 'Los cajeros cuentan cada moneda dos veces.', tono: 'mal' },
             ],
         }),
         perro: (i) => ({
@@ -145,7 +145,7 @@ const CAMPANA = (() => {
             texto: `Un perro callejero bajó las gradas de ${NOMBRE[i]} y pasea por el borde del andén. La gente le da pan; el conductor que llega no quiere arrancar.`,
             opciones: [
                 { t: 'Que los guardias lo saquen con calma', d: `Tres minutos con los trenes detenidos junto a ${NOMBRE[i]}.`, fx: (S) => { S.cortarVia(i, 3); }, r: 'El perro sale moviendo la cola.' },
-                { t: 'Adoptarlo como mascota de la estación (−$120)', d: 'Los mismos tres minutos, más la comida y la vacuna. A la gente le va a encantar.', fx: (S) => { S.cortarVia(i, 3); S.gasto(120); S.opinion(i, 100, 1500); }, r: `Desde hoy, ${NOMBRE[i]} tiene mascota. Ya le dicen «Durmiente».`, tono: 'bien' },
+                { t: 'Adoptarlo como mascota de la estación (−$120)', d: 'Los mismos tres minutos, más la comida y la vacuna. A la gente le va a encantar, y no solo hoy.', fx: (S) => { S.cortarVia(i, 3); S.gasto(120); S.opinion(i, 100, 1500); S.manana({ s: 'durmiente', i }); }, r: `Desde hoy, ${NOMBRE[i]} tiene mascota. Ya le dicen «Durmiente».`, tono: 'bien' },
             ],
         }),
         protesta: () => ({
@@ -163,14 +163,14 @@ const CAMPANA = (() => {
             opciones: [
                 { t: 'Cerrar las dos horas', d: 'Nadie entra por San Francisco y los trenes la pasan de largo.', fx: (S) => { const min = S.cerrarEstacion(6, 120, true); S.luego(min, (Q) => Q.avisar('bien', 'Se fue la comitiva. San Francisco vuelve a abrir.', 6)); }, r: 'San Francisco cierra por la visita oficial.', tono: 'mal' },
                 { t: 'Ofrecer un solo acceso abierto', d: 'La estación sigue, con la boletería a la mitad durante dos horas.', fx: (S) => { S.boleteriaLenta(6, 120, 0.5); }, r: 'San Francisco trabaja con un solo acceso.' },
-                { t: 'Negarse (−$800 de multa)', d: 'La estación trabaja normal y la gente lo agradece. La queja formal sale cara.', fx: (S) => { S.gasto(800); S.opinion(6, 100, 1500); }, r: 'La comitiva entra a pie, como todo el mundo.', tono: 'bien' },
+                { t: 'Negarse (−$800 de multa)', d: 'La estación trabaja normal y la gente lo agradece. La queja formal sale cara, y el Gobierno toma nota.', fx: (S) => { S.gasto(800); S.opinion(6, 100, 1500); S.manana({ s: 'inspeccion' }); }, r: 'La comitiva entra a pie, como todo el mundo.', tono: 'bien' },
             ],
         }),
         grafiti: () => ({
             id: 'grafiti', titulo: 'Un tren amaneció pintado',
             texto: 'En la cochera, alguien cubrió medio tren con grafiti durante la noche. Está listo para salir, pero se ve.',
             opciones: [
-                { t: 'Que salga así', d: 'No pierdes el tren. Sale en todas las redes antes de las ocho.', fx: (S) => { S.opinion(-1, 45, 2500); }, r: 'El tren pintado ya circula. Las fotos también.' },
+                { t: 'Que salga así', d: 'No pierdes el tren. Sale en todas las redes antes de las ocho, y a los que lo pintaron les va a gustar.', fx: (S) => { S.opinion(-1, 45, 2500); S.manana({ s: 'grafiti' }); }, r: 'El tren pintado ya circula. Las fotos también.' },
                 { t: 'Limpiarlo antes de sacarlo', d: 'Un tren menos durante dos horas.', fx: (S) => { S.retirar(1, 120); }, r: 'Agua a presión en la cochera: el tren sale en dos horas.' },
             ],
         }),
@@ -187,7 +187,7 @@ const CAMPANA = (() => {
             texto: `La escalera eléctrica principal de ${NOMBRE[i]} se detuvo. La gente sube y baja por las gradas, despacio.`,
             opciones: [
                 { t: 'Técnico de urgencia (−$900)', d: 'En veinte minutos vuelve a andar.', fx: (S) => { S.gasto(900); }, r: `La escalera de ${NOMBRE[i]} vuelve a andar.`, tono: 'bien' },
-                { t: 'Que la revisen en la noche', d: 'El vestíbulo se atasca: la boletería va un 20% más lenta durante tres horas, y la gente reclama.', fx: (S) => { S.boleteriaLenta(i, 180, 0.8); S.opinion(i, 30, 900); }, r: `Fila en las gradas de ${NOMBRE[i]}.`, tono: 'mal' },
+                { t: 'Que la revisen en la noche', d: 'El vestíbulo se atasca: la boletería va un 20% más lenta durante tres horas, y la gente reclama. El turno de noche tiene otras cosas pendientes.', fx: (S) => { S.boleteriaLenta(i, 180, 0.8); S.opinion(i, 30, 900); S.manana({ s: 'escalera', i }); }, r: `Fila en las gradas de ${NOMBRE[i]}.`, tono: 'mal' },
             ],
         }),
         bicis: () => ({
@@ -204,7 +204,7 @@ const CAMPANA = (() => {
             opciones: [
                 { t: 'Reforzar la guardia hoy (−$800)', d: 'Se nota, y la gente lo agradece.', fx: (S) => { S.gasto(800); S.opinion(i, 100, 900); }, r: `Más guardias en los andenes de ${NOMBRE[i]}.`, tono: 'bien' },
                 { t: 'Avisar por los parlantes', d: 'No cuesta nada y ayuda algo.', fx: (S) => { S.opinion(i, 60, 600); }, r: '«Cuide sus pertenencias», repiten los parlantes.' },
-                { t: 'Es asunto de la Policía', d: 'Nada cambia. Las denuncias, tampoco.', fx: (S) => { S.opinion(i, 15, 900); }, r: 'Otra denuncia más.', tono: 'mal' },
+                { t: 'Es asunto de la Policía', d: 'Nada cambia. Las denuncias, tampoco, y la fama de la estación se queda.', fx: (S) => { S.opinion(i, 15, 900); S.manana({ s: 'carteristas', i }); }, r: 'Otra denuncia más.', tono: 'mal' },
             ],
         }),
         carnavaleros: (i) => ({
@@ -246,12 +246,128 @@ const CAMPANA = (() => {
             texto: 'A uno de los trenes se le dañó la ventilación. Con gente adentro, es un horno.',
             opciones: [
                 { t: 'Guardarlo hora y media para repararlo', d: 'Un tren menos mientras tanto, si queda alguno en la cochera para reemplazarlo.', fx: (S) => { S.retirar(1, 90); }, r: 'El tren entra al taller. Vuelve en hora y media.' },
-                { t: 'Que siga rodando', d: 'No pierdes el tren. Quien viaja en él lo recuerda.', fx: (S) => { S.opinion(-1, 35, 3000); }, r: 'Ventanas empañadas y abanicos improvisados.', tono: 'mal' },
+                { t: 'Que siga rodando', d: 'No pierdes el tren hoy. Quien viaja en él lo recuerda, y un motor recalentado tampoco olvida.', fx: (S) => { S.opinion(-1, 35, 3000); S.manana({ s: 'aire' }); }, r: 'Ventanas empañadas y abanicos improvisados.', tono: 'mal' },
+            ],
+        }),
+        // ───── Las que vienen de algo que pasó ayer ─────
+        paro: () => ({
+            id: 'paro', titulo: 'Los cajeros siguen «a reglamento»',
+            texto: 'Ayer no hubo bono y el sindicato amaneció en la puerta del Puesto Central. Si no hay acuerdo, hoy las boleterías vuelven a ir lentas, y peor.',
+            opciones: [
+                { t: 'Negociar: el bono y un día libre rotativo (−$2.000)', d: 'Sale más caro que el bono de ayer, pero se acaba el problema.', fx: (S) => { S.gasto(2000); }, r: 'Acuerdo firmado a las siete. Las ventanillas abren a ritmo normal.', tono: 'bien' },
+                { t: 'Traer cajeros temporales (−$900)', d: 'Más baratos, pero sin experiencia: las boleterías van un 15% más lento durante cuatro horas.', fx: (S) => { S.gasto(900); S.boleteriaLenta(-1, 240, 0.85); }, r: 'Cajeros nuevos con el manual en la mano.' },
+                { t: 'Mantener la negativa', d: 'Todas las boleterías van un 35% más lento durante cinco horas, y la gente lo nota.', fx: (S) => { S.boleteriaLenta(-1, 300, 0.65); S.opinion(-1, 40, 2500); }, r: '«A reglamento»: cada pasaje se cuenta tres veces.', tono: 'mal' },
+            ],
+        }),
+        mural: () => ({
+            id: 'mural', titulo: 'Volvieron a pintar',
+            texto: 'Al grafiti de ayer le salieron imitadores: esta mañana hay dos trenes pintados en la cochera de Quitumbe. Las fotos ya circulan.',
+            opciones: [
+                { t: 'Encargar un mural oficial a artistas del sur (−$1.000)', d: 'Un tren pintado con permiso, y los muchachos del barrio de su lado. Se acaba la competencia.', fx: (S) => { S.gasto(1000); S.opinion(-1, 100, 3000); }, r: 'El tren 7 sale con un cóndor y el Pichincha de lado a lado. Lo pintaron en Chillogallo.', tono: 'bien' },
+                { t: 'Limpiar y poner guardias en la cochera (−$1.400)', d: 'Dos trenes menos durante una hora, y no vuelve a pasar.', fx: (S) => { S.gasto(1400); S.retirar(2, 60); }, r: 'Agua a presión y dos guardias más en la cochera.' },
+                { t: 'Que salgan así', d: 'No pierdes trenes. Ya parece costumbre.', fx: (S) => { S.opinion(-1, 40, 4000); }, r: 'Ya son dos trenes pintados.', tono: 'mal' },
+            ],
+        }),
+        vendedores2: (i) => ({
+            id: 'vendedores2', est: i, titulo: `Los vendedores volvieron a ${NOMBRE[i]}`,
+            texto: `Ayer se les dejó, y hoy son el doble: ocupan media escalera de ${NOMBRE[i]}.`,
+            opciones: [
+                { t: 'Que los guardias despejen', d: 'Ahora sí se molestan, ellos y sus clientes.', fx: (S) => { S.opinion(i, 40, 1200); }, r: 'Los guardias despejan la escalera entre reclamos.', tono: 'mal' },
+                { t: 'Una feria ordenada en la plaza con el Municipio (−$600)', d: 'Los puestos salen a la plaza, con carpa y todo. La gente sigue comprando su café.', fx: (S) => { S.gasto(600); S.opinion(i, 100, 1200); }, r: `Feria en la plaza de ${NOMBRE[i]}.`, tono: 'bien' },
+                { t: 'Dejarlos otra vez', d: 'La boletería va un 40% más lenta durante cinco horas.', fx: (S) => { S.boleteriaLenta(i, 300, 0.6); S.opinion(i, 85, 800); }, r: `La escalera de ${NOMBRE[i]} es un mercado.` },
+            ],
+        }),
+        inspeccion: () => ({
+            id: 'inspeccion', titulo: 'Llega una inspección',
+            texto: 'Después de lo de ayer con la comitiva, el Ministerio manda una inspección de seguridad «de rutina» a todas las estaciones.',
+            opciones: [
+                { t: 'Acompañarlos con el jefe de cada estación', d: 'Todo en regla, pero las boleterías pierden gente: van un 15% más lento durante dos horas.', fx: (S) => { S.boleteriaLenta(-1, 120, 0.85); }, r: 'Los inspectores recorren los andenes con su carpeta.' },
+                { t: 'Contratar personal de apoyo para el día (−$700)', d: 'La inspección pasa sin que nadie lo note.', fx: (S) => { S.gasto(700); }, r: 'Inspección sin novedad.', tono: 'bien' },
+            ],
+        }),
+        // ───── De Quito, para el turno sin fin ─────
+        trole: () => ({
+            id: 'trole', est: 0, titulo: 'Se dañó un trolebús en la Maldonado',
+            texto: 'Un trole quedó atravesado en la avenida Maldonado y el corredor sur está trabado. Miles de pasajeros caminan hacia Quitumbe y Morán Valverde para seguir en Metro.',
+            opciones: [
+                { t: 'Recibirlos sin cobrar 30 minutos', d: 'Torniquetes abiertos en Quitumbe y Morán Valverde. El Municipio paga la mitad de esos pasajes.', fx: (S) => { S.entradaGratis(0, 30, 0.5); S.entradaGratis(1, 30, 0.5); S.oleada(0, 40, 90); S.oleada(1, 40, 50); S.opinion(0, 100, 2000); }, r: 'Torniquetes abiertos en el sur: «Pase nomás, vecino».', tono: 'bien' },
+                { t: 'Que paguen como todos', d: 'La gente llega igual, pero a hacer fila.', fx: (S) => { S.oleada(0, 40, 90); S.oleada(1, 40, 50); S.opinion(0, 50, 1500); }, r: 'Filas largas en las boleterías de Quitumbe y Morán Valverde.' },
+                { t: 'Pedir buses alimentadores al Municipio (−$1.200)', d: 'Los buses reparten a la gente: llega la mitad, y más ordenada.', fx: (S) => { S.gasto(1200); S.oleada(0, 40, 45); S.oleada(1, 40, 25); S.opinion(0, 85, 1200); }, r: 'Buses alimentadores en la Maldonado.' },
+            ],
+        }),
+        luz: () => ({
+            id: 'luz', titulo: 'Cortes de luz programados',
+            texto: 'El CENACE anuncia cortes de luz en varios sectores de Quito durante dos horas. El Metro tiene su propia subestación, pero la Empresa Eléctrica pide bajar el consumo.',
+            opciones: [
+                { t: 'Marcha económica', d: 'Los trenes van al 75% de su velocidad durante dos horas. Nadie se queda a oscuras.', fx: (S) => { S.marchaLenta(120, 0.75); S.opinion(-1, 80, 1000); }, r: 'Marcha económica en toda la línea.' },
+                { t: 'Generadores propios (−$2.200)', d: 'La línea sigue igual. El diésel no es barato.', fx: (S) => { S.gasto(2200); }, r: 'Generadores encendidos en las cocheras.', tono: 'bien' },
+                { t: 'Pedir que exceptúen al Metro', d: 'Puede salir bien o mal: si no aceptan, los trenes van al 60% durante dos horas.', fx: (S) => { if ((S.pasos * 2654435761 >>> 0) % 2) { S.opinion(-1, 95, 1000); return 'La Empresa Eléctrica acepta: el Metro queda fuera de los cortes.'; } S.marchaLenta(120, 0.6); return 'La Empresa Eléctrica no acepta: marcha lenta obligada por dos horas.'; } },
+            ],
+        }),
+        estudiantes: () => ({
+            id: 'estudiantes', est: 9, titulo: 'Plantón en la Universidad Central',
+            texto: 'La FEUE convoca un plantón por el presupuesto universitario en la avenida América. La boca de Universidad Central queda en medio.',
+            opciones: [
+                { t: 'Cerrar Universidad Central una hora', d: 'Nadie entra ni sale; los trenes la pasan de largo.', fx: (S) => { const min = S.cerrarEstacion(9, 60, true); S.luego(min, (Q) => Q.avisar('bien', 'Termina el plantón. Universidad Central vuelve a abrir.', 9)); }, r: 'Universidad Central cierra mientras dura el plantón.', tono: 'mal' },
+                { t: 'Seguir abiertos con personal de orden (−$500)', d: 'La boletería va un 30% más lenta durante hora y media.', fx: (S) => { S.gasto(500); S.boleteriaLenta(9, 90, 0.7); }, r: 'Personal de orden en la boca de Universidad Central.' },
+                { t: 'Abrir los torniquetes a los estudiantes', d: 'El plantón se dispersa en Metro y nadie se pelea. Esos pasajes no se cobran.', fx: (S) => { S.entradaGratis(9, 45); S.oleada(9, 45, 40); S.opinion(9, 100, 1500); }, r: 'Los estudiantes bajan al andén cantando.', tono: 'bien' },
+            ],
+        }),
+        veterinario: (i) => ({
+            id: 'veterinario', est: i, titulo: 'Durmiente amaneció cojeando',
+            texto: `La mascota de ${NOMBRE[i]} amaneció cojeando. La gente pregunta por él en la ventanilla.`,
+            opciones: [
+                { t: 'Llevarlo al veterinario (−$180)', d: 'Vuelve con una venda y un pañuelo del Metro.', fx: (S) => { S.gasto(180); S.opinion(i, 100, 1500); }, r: `Durmiente vuelve a ${NOMBRE[i]} con una venda. Aplausos.`, tono: 'bien' },
+                { t: 'Que lo vea la protectora de animales', d: 'No cuesta nada; tarda un poco más.', fx: (S) => { S.opinion(i, 80, 600); }, r: 'Una voluntaria de la protectora se lo lleva en brazos.' },
             ],
         }),
     };
     /** Una decisión del repertorio, a una hora y en una estación. */
     const dec = (cual, hora, i) => Object.assign({ hora, tipo: 'decision' }, DECISIONES[cual](i));
+
+    // ───────────────────────── Lo que queda para mañana ─────────────────────────
+    // Algunas decisiones no se acaban ese día: `S.manana(x)` deja una nota y, al día siguiente, aquí se convierte en
+    // lo que pasa. Cada una devuelve { parte: lo que se anuncia en el tablero, sucesos }. Con `dias` dura varios días.
+    const temprano = (D, mas = 0.15) => (D.abre || 5.5) + mas;
+    const SECUELAS = {
+        tarjetas: (x, D) => ({ parte: 'las 2.000 tarjetas regaladas ayer ya circulan: más gente pasa directo', sucesos: [{ hora: temprano(D), tipo: 'fx', f: (S) => { S.tarjeta = Math.min(0.92, S.tarjeta + 0.03); }, texto: 'Las tarjetas que regalaste ayer ya están cargadas: hoy más gente pasa directo por los torniquetes.', tono: 'bien' }] }),
+        video: (x, D) => ({ parte: 'el video de ayer llegó al millón de vistas', sucesos: [{ hora: temprano(D, 1.5), tipo: 'fx', f: (S) => { S.opinion(-1, 30, 3000, 'evento'); }, texto: 'El video de ayer ya tiene un millón de vistas, y hoy lo comentan en el andén.', tono: 'mal' }] }),
+        reglamento: (x, D) => ({ parte: 'los cajeros siguen «a reglamento»', sucesos: [Object.assign({ hora: temprano(D, 0.2), tipo: 'decision' }, DECISIONES.paro())] }),
+        grafiti: (x, D) => ({ parte: 'al grafiti de ayer le salieron imitadores', sucesos: [Object.assign({ hora: temprano(D, 0.25), tipo: 'decision' }, DECISIONES.mural())] }),
+        escalera: (x, D) => ({ parte: `la escalera de ${NOMBRE[x.i]} sigue sin arreglar`, sucesos: [{ hora: temprano(D, 1.4), tipo: 'fx', est: x.i, f: (S) => { S.boleteriaLenta(x.i, 180, 0.7); S.opinion(x.i, 30, 1200, 'evento'); }, texto: `La escalera de ${NOMBRE[x.i]} que quedó para la noche no se arregló, y se volvió a trabar en plena mañana.`, tono: 'mal' }] }),
+        vendedores: (x, D) => ({ parte: `los vendedores de ${NOMBRE[x.i]} volvieron`, sucesos: [Object.assign({ hora: temprano(D, 3.2), tipo: 'decision' }, DECISIONES.vendedores2(x.i))] }),
+        feria: (x, D) => ({ parte: `feria en la plaza de ${NOMBRE[x.i]}`, sucesos: [{ hora: temprano(D, 4), tipo: 'fx', est: x.i, f: (S) => { S.opinion(x.i, 100, 600, 'evento'); } }] }),
+        carteristas: (x, D) => ({ parte: `${NOMBRE[x.i]} tiene fama de carteristas`, sucesos: [{ hora: temprano(D, 2), tipo: 'fx', est: x.i, f: (S) => { S.opinion(x.i, 25, 1500, 'evento'); }, texto: `«En ${NOMBRE[x.i]} roban», dicen en las redes. La gente entra con la mochila adelante.`, tono: 'mal' }] }),
+        aire: (x, D) => ({ parte: 'el tren sin ventilación de ayer sigue rodando', sucesos: [{ hora: temprano(D, 2.1), tipo: 'averia', est: 5, min: 14 }, { hora: temprano(D, 2.12), tipo: 'aviso', tono: 'mal', texto: 'El tren que ayer siguió sin ventilación se recalentó: falla en plena mañana.' }] }),
+        inspeccion: (x, D) => ({ parte: 'llega una inspección del Ministerio', sucesos: [Object.assign({ hora: temprano(D, 3), tipo: 'decision' }, DECISIONES.inspeccion())] }),
+        serenata: (x, D) => (x.bien
+            ? { parte: 'Quito agradece la serenata de anoche', sucesos: [{ hora: temprano(D, 0.5), tipo: 'fx', f: (S) => { S.opinion(-1, 100, 4000, 'evento'); }, texto: '«El Metro nos llevó a casa después de la serenata»: las redes amanecen agradecidas.', tono: 'bien' }] }
+            : { parte: 'anoche la gente se quedó botada después de la serenata', sucesos: [{ hora: temprano(D, 0.5), tipo: 'fx', f: (S) => { S.opinion(-1, 20, 4000, 'evento'); }, texto: 'Las redes amanecen con fotos de la gente que esperó taxi en la Plaza Grande hasta las dos.', tono: 'mal' }] }),
+    };
+    /** La mascota de una estación: todos los días alegra a quien pasa, y de vez en cuando necesita algo. */
+    const mascota = (m, D) => {
+        const sucesos = [{ hora: temprano(D, 3), tipo: 'fx', est: m.i, f: (S) => { S.opinion(m.i, 100, 500, 'evento'); } }];
+        if (m.dias === 3) sucesos.push(Object.assign({ hora: temprano(D, 2.5), tipo: 'decision' }, DECISIONES.veterinario(m.i)));
+        return { parte: `Durmiente, la mascota de ${NOMBRE[m.i]}, recibe a la gente en el andén`, sucesos };
+    };
+    /**
+     * El día `D` con lo que dejó el anterior: `lista` son las notas de `S.manana` y `m`, la mascota ({ i, dias }), si
+     * la hay. Devuelve una copia; el escenario original no se toca.
+     */
+    const conSecuelas = (D, lista, m) => {
+        if ((!lista || !lista.length) && !m) return D;
+        const X = Object.assign({}, D), sucesos = (D.sucesos || []).slice(), parte = (D.parte || []).slice(), cierra = D.cierra || 23;
+        for (const r of (lista || []).map((x) => SECUELAS[x.s] && SECUELAS[x.s](x, D)).concat(m ? [mascota(m, D)] : [])) {
+            if (!r) continue;
+            if (r.parte) parte.push('Lo de ayer: ' + r.parte);
+            sucesos.push(...r.sucesos.filter((q) => q.hora < cierra - 0.5));
+        }
+        sucesos.sort((p, q) => p.hora - q.hora);
+        X.sucesos = sucesos; X.parte = parte;
+        return X;
+    };
+    /** Qué notas siguen valiendo al día siguiente (las que duran varios días). */
+    const siguen = (lista) => (lista || []).filter((x) => (x.dias || 1) > 1).map((x) => Object.assign({}, x, { dias: x.dias - 1 }));
 
     const SABADO = { abre: 7, cierra: 23, fijo: 0.68, perfil: [[7, 0.25], [9, 0.6], [11, 0.95], [13, 1.1], [15, 1.0], [17, 1.2], [19, 1.5], [20.5, 1.4], [22, 1.05], [23, 0.8], [24, 0.6], [25.5, 0.25]], vuelta: [[7, 0.35], [15, 0.4], [18, 0.15], [21, 0.3], [22.5, 0.9]] };
     const DOMINGO = { abre: 7, cierra: 22, fijo: 0.8, perfil: [[7, 0.3], [9, 0.8], [10.5, 1.3], [12, 1.5], [13.5, 1.35], [15, 1.2], [17, 1.35], [19, 1.3], [20.5, 1.1], [21.5, 0.7], [22, 0.4], [23, 0.2]], vuelta: [[7, 0.3], [11, 0.35], [14, 0.6], [17, 0.45], [19.5, 0.8], [22, 1]] };
@@ -361,9 +477,9 @@ const CAMPANA = (() => {
         },
         Object.assign({
             n: 'Sábado', corto: 'Sáb', fecha: '5 de diciembre', t: 'Víspera de fiestas', meta: 76, demanda: 0.82,
-            nuevo: { n: 'El fin de semana', d: 'El Metro abre a las 07:00, no hay picos de oficina y entra menos plata. El horario de entre semana aquí pierde dinero: hay que mirar el pronóstico.' },
+            nuevo: { n: 'El horario de fin de semana', d: 'Sábados, domingos y feriados tienen sus propias franjas (de las 07:00 a la noche, sin picos de oficina) y su propio horario, que se guarda aparte del de entre semana. Y desde hoy el Horario te sugiere intervalos a partir del pronóstico.' },
             intro: 'Sábado de chivas, canelazo y serenata. La mañana es floja; de la tarde en adelante todo el mundo va al centro, y a la medianoche todos quieren volver.',
-            parte: ['Horario de sábado: de 07:00 a 23:00', 'Sin picos de oficina: la gente sale desde el mediodía y no para', 'Serenata quiteña en el Centro Histórico: termina a la medianoche'],
+            parte: ['Horario de sábado: de 07:00 a 23:00, con las franjas del fin de semana', 'Sin picos de oficina: la gente sale desde el mediodía y no para', 'Serenata quiteña en el Centro Histórico: termina a la medianoche'],
             reto: { t: 'Cerrar el día con la caja a favor', premio: 3000, ok: (S) => S.balance() >= 0, valor: saldoTxt },
             eventos: [{ est: 6, de: 22.6, a: 24.4, porMin: 115, sitio: 'plaza', n: 'Serenata quiteña' }, { est: 8, de: 22.8, a: 24.2, porMin: 55, sitio: 'mariscal', n: 'Chivas en La Mariscal' }, { est: 11, de: 22.5, a: 24, porMin: 60, sitio: 'carolina', n: 'Tarima en La Carolina' }],
             fiestas: 17.5,
@@ -383,8 +499,8 @@ const CAMPANA = (() => {
                     hora: 20.5, tipo: 'decision', id: 'serenata', est: 6, titulo: 'Serenata hasta la medianoche',
                     texto: 'La serenata quiteña termina a las 00:00 y el Metro cierra a las 23:00. Miles de personas van a salir del Centro Histórico sin cómo volver. El año pasado, en esta fecha, el Metro cerró a la 01:30.',
                     opciones: [
-                        { t: 'Extender el servicio hasta la 01:30 (−$2.800)', d: 'Horas extra para todo el personal y más trenes rodando, pero nadie se queda botado.', fx: (S) => { S.gasto(2800); S.extender(25.5); S.opinion(-1, 100, 3000); }, r: 'Hoy el Metro cierra a la 01:30. La franja de la noche se alarga.', tono: 'bien' },
-                        { t: 'Cerrar a las 23:00, como todo sábado', d: 'La caja lo agradece. Quien salga de la serenata tendrá que buscar taxi.', fx: (S) => { S.luego(150, (Q) => { Q.opinion(-1, 5, 7000); Q.avisar('mal', 'El Metro cerró y la serenata sigue. Miles de personas buscan taxi en el Centro Histórico.', 6); }); }, r: 'El Metro cierra a las 23:00.' },
+                        { t: 'Extender el servicio hasta la 01:30 (−$2.800)', d: 'Horas extra para todo el personal y más trenes rodando, pero nadie se queda botado. La ciudad lo va a recordar mañana.', fx: (S) => { S.gasto(2800); S.extender(25.5); S.opinion(-1, 100, 3000); S.manana({ s: 'serenata', bien: true }); }, r: 'Hoy el Metro cierra a la 01:30. La franja de la noche se alarga.', tono: 'bien' },
+                        { t: 'Cerrar a las 23:00, como todo sábado', d: 'La caja lo agradece. Quien salga de la serenata tendrá que buscar taxi, y mañana es el Día de Quito.', fx: (S) => { S.luego(150, (Q) => { Q.opinion(-1, 5, 7000, 'd:serenata'); Q.avisar('mal', 'El Metro cerró y la serenata sigue. Miles de personas buscan taxi en el Centro Histórico.', 6); }); S.manana({ s: 'serenata', bien: false }); }, r: 'El Metro cierra a las 23:00.' },
                     ],
                 },
                 dec('via', 22.2, 7),
@@ -393,7 +509,7 @@ const CAMPANA = (() => {
         Object.assign({
             n: 'Domingo', corto: 'Dom', fecha: '6 de diciembre', t: 'Día de Quito', meta: 75, demanda: 0.9, trenesFuera: 1,
             nuevo: { n: 'Todo junto', d: 'Feriado, desfile, aguacero, concierto y un tren menos. Hoy no hay nada nuevo que aprender: hay que usarlo todo.' },
-            intro: 'Feriado: 492 años de la fundación. Desfile de la confraternidad en el norte al mediodía, aguacero anunciado para la tarde y concierto de cierre en el Parque Bicentenario, junto a El Labrador. Un tren quedó en el taller después de la granizada.',
+            intro: 'Feriado: 492 años de la fundación. Desfile de la confraternidad en el norte al mediodía, aguacero anunciado para la tarde y concierto de cierre en el Parque Bicentenario, junto a El Labrador: cuarenta mil personas, y la mitad se irá en Metro. Un tren quedó en el taller después de la granizada.',
             parte: ['Horario de feriado: de 07:00 a 22:00', 'Un tren en el taller: tienes 17', 'Desfile en La Carolina e Iñaquito hasta las 13:30', 'Aguacero de 15:30 a 17:30', 'El concierto del Parque Bicentenario termina a las 20:15'],
             reto: { t: 'Récord para un feriado: 192.000 viajes', premio: 4000, ok: (S) => S.cuenta.viajes >= 192000, valor: (S) => `${miles(S.cuenta.viajes)} viajes` },
             lluvia: [15.5, 17.5, 1],
@@ -404,7 +520,7 @@ const CAMPANA = (() => {
                     hora: 9.4, tipo: 'decision', id: 'tv', est: 11, titulo: 'En vivo desde el andén',
                     texto: 'Un canal quiere transmitir en vivo desde el andén de La Carolina a las 13:00, cuando termine el desfile y la estación esté a reventar.',
                     opciones: [
-                        { t: 'Bienvenidos', d: 'Si a las 13:00 La Carolina va bien (ánimo de 72 o más), lo ve todo el país y sube el ánimo de la línea. Si va mal, también lo ven.', fx: (S) => { S.luego(216, (Q) => { if (Q.est[11].animo >= 72) { Q.opinion(-1, 100, 6000); Q.avisar('bien', 'En vivo desde La Carolina: «El Metro responde en el Día de Quito». Aplausos en el andén.', 11); } else { Q.opinion(-1, 5, 5000); Q.avisar('mal', 'En vivo desde La Carolina: «Caos en el Metro en pleno feriado». Lo está viendo todo el país.', 11); } }); }, r: 'El canal instala sus cámaras en La Carolina. Salen al aire a las 13:00.' },
+                        { t: 'Bienvenidos', d: 'Si a las 13:00 La Carolina va bien (ánimo de 72 o más), lo ve todo el país y sube el ánimo de la línea. Si va mal, también lo ven.', fx: (S) => { S.luego(216, (Q) => { if (Q.est[11].animo >= 72) { Q.opinion(-1, 100, 6000, 'd:tv'); Q.avisar('bien', 'En vivo desde La Carolina: «El Metro responde en el Día de Quito». Aplausos en el andén.', 11); } else { Q.opinion(-1, 5, 5000, 'd:tv'); Q.avisar('mal', 'En vivo desde La Carolina: «Caos en el Metro en pleno feriado». Lo está viendo todo el país.', 11); } }); }, r: 'El canal instala sus cámaras en La Carolina. Salen al aire a las 13:00.' },
                         { t: 'Hoy no', d: 'Sin riesgo y sin premio.', r: 'El canal transmitirá desde la calle.' },
                     ],
                 },
@@ -421,14 +537,14 @@ const CAMPANA = (() => {
                 { hora: 15.3, tipo: 'aviso', texto: 'Empieza a llover sobre el norte. El concierto del Parque Bicentenario sigue.' },
                 {
                     hora: 17, tipo: 'decision', id: 'labrador', est: 14, titulo: 'Agua en El Labrador',
-                    texto: 'Como en octubre: con el aguacero se acumuló agua en El Labrador. A tres horas de que cuarenta mil personas salgan del concierto por esa estación.',
+                    texto: 'Como en octubre: con el aguacero se acumuló agua en El Labrador. En tres horas termina el concierto, y unas veinte mil personas van a querer entrar por esa estación.',
                     opciones: [
                         { t: 'Bombas y cuadrillas ya (−$3.000)', d: 'El Labrador cierra solo 40 minutos; los trenes dan la vuelta en Jipijapa mientras tanto.', fx: (S) => { S.gasto(3000); S.cortarTramo(0, 13, 40, [], true); }, r: 'El Labrador cierra 40 minutos para sacar el agua. Los trenes dan la vuelta en Jipijapa.' },
                         { t: 'Cerrarla y limpiar con el personal', d: 'No cuesta nada, pero El Labrador pierde dos horas y media y reabre justo antes de la salida del concierto.', fx: (S) => { S.cortarTramo(0, 13, 150); }, r: 'El Labrador queda cerrada. Los trenes dan la vuelta en Jipijapa.', tono: 'mal' },
                         { t: 'Seguir abiertos con el piso mojado', d: 'Nadie pierde su tren, pero la boletería de El Labrador trabaja a la mitad hasta el cierre y habrá resbalones.', fx: (S) => { S.boleteriaLenta(14, 300, 0.5); S.opinion(14, 10, 1500); }, r: 'El Labrador sigue abierta, entre baldes y conos.', tono: 'mal' },
                     ],
                 },
-                { hora: 19.6, tipo: 'aviso', texto: 'Última canción en el Parque Bicentenario. En media hora, cuarenta mil personas caminan hacia El Labrador y Jipijapa.', est: 14, mapa: true },
+                { hora: 19.6, tipo: 'aviso', texto: 'Última canción en el Parque Bicentenario. En media hora salen cuarenta mil personas, y la mitad camina hacia El Labrador y Jipijapa.', est: 14, mapa: true },
             ],
         }, DOMINGO),
     ];
@@ -456,6 +572,49 @@ const CAMPANA = (() => {
         { de: 10, n: 'Jefe de línea', d: 'Sacaste adelante la semana de fiestas. Hubo días duros, pero la gente llegó.' },
         { de: 0, n: 'Jefe a prueba', d: 'La semana terminó. Te la juegas de nuevo: repite los días flojos para subir de rango.' },
     ];
+
+    // ───────────────────────── Las misiones ─────────────────────────
+    // Encargos de varios días que piden quienes viven de la línea. Se aceptan en el tablero (hasta dos a la vez) y
+    // tienen un plazo en días jugados. «veces»: cuántos días tiene que cumplirse `ok`; con «seguidos», sin cortar.
+    // «suma»: lo que hay que juntar entre todos los días con `medida`. «desde»: a partir de qué día de la semana se
+    // ofrecen. `ok` recibe la simulación del día y { est, D } (las estrellas y el escenario).
+    const animoDe = (S, l) => Math.min(...l.map((i) => S.est[i].animo));
+    const MISIONES = [
+        { id: 'reloj', de: 'El directorio', n: 'Reloj de diciembre', d: 'Tres días seguidos con la espera media en el andén por debajo de 4 minutos.', veces: 3, seguidos: true, plazo: 5, premio: 3000, desde: 0,
+            ok: (S) => S.cuenta.esperaN > 1000 && S.esperaMedia() < 4, valor: (S) => `espera de ${coma(S.esperaMedia())} min` },
+        { id: 'sur', de: 'Los barrios del sur', n: 'El sur también cuenta', d: 'Dos días con Quitumbe, Morán Valverde y Solanda en 80 de ánimo o más.', veces: 2, plazo: 4, premio: 2500, desde: 0,
+            ok: (S) => animoDe(S, [0, 1, 2]) >= 80, valor: (S) => `la peor, en ${Math.round(animoDe(S, [0, 1, 2]))}` },
+        { id: 'u', de: 'La Universidad Central', n: 'A clases a tiempo', d: 'Un día entre semana con Universidad Central y El Ejido en 85 de ánimo o más.', veces: 1, plazo: 4, premio: 2000, desde: 0,
+            ok: (S, c) => !c.D.abre && animoDe(S, [8, 9]) >= 85, valor: (S) => `la peor, en ${Math.round(animoDe(S, [8, 9]))}` },
+        { id: 'viajes', de: 'El Municipio', n: 'Seiscientos mil', d: 'Llevar a 600.000 personas en tres días.', suma: 600000, plazo: 3, premio: 3000, desde: 0,
+            medida: (S) => S.cuenta.viajes, valor: (S) => `${miles(S.cuenta.viajes)} hoy` },
+        { id: 'fila', de: 'La Defensoría del Pueblo', n: 'Nadie se va de la fila', d: 'Un día en que menos de 300 personas se cansen de la fila de la boletería.', veces: 1, plazo: 3, premio: 2000, desde: 1,
+            ok: (S) => S.cuenta.idosFila < 300, valor: (S) => `${miles(S.cuenta.idosFila)} se fueron de la fila` },
+        { id: 'centro', de: 'Los vecinos del Centro Histórico', n: 'El corazón de Quito', d: 'Dos días con San Francisco y La Alameda en 82 de ánimo o más.', veces: 2, plazo: 4, premio: 2500, desde: 1,
+            ok: (S) => animoDe(S, [6, 7]) >= 82, valor: (S) => `la peor, en ${Math.round(animoDe(S, [6, 7]))}` },
+        { id: 'cuentas', de: 'El directorio', n: 'Cuentas claras', d: 'Dos días con al menos $3.000 a favor y dos estrellas o más.', veces: 2, plazo: 4, premio: 3000, desde: 1,
+            ok: (S, c) => S.balance() >= 3000 && c.est >= 2, valor: (S) => saldoTxt(S) },
+        { id: 'tarjeta', de: 'El Municipio', n: 'Todos con tarjeta', d: 'Que tres de cada cuatro personas paguen con tarjeta. La campaña Tarjeta Ciudad, en la tienda, ayuda.', veces: 1, plazo: 5, premio: 4000, desde: 1,
+            ok: (S) => S.tarjeta >= 0.75, valor: (S) => `${Math.round(S.tarjeta * 100)}% con tarjeta` },
+        { id: 'llenos', de: 'La asamblea de usuarios', n: 'Que todos suban', d: 'Un día en que menos de 1.500 personas vean pasar un tren lleno sin poder subir.', veces: 1, plazo: 3, premio: 2500, desde: 2,
+            ok: (S) => S.cuenta.dejados < 1500, valor: (S) => `${miles(S.cuenta.dejados)} se quedaron` },
+        { id: 'nadie', de: 'La Defensoría del Pueblo', n: 'Ni uno botado', d: 'Un día en que se vayan sin viajar menos de 1.500 personas.', veces: 1, plazo: 4, premio: 3000, desde: 2,
+            ok: (S) => S.cuenta.idos < 1500, valor: (S) => `${miles(S.cuenta.idos)} se fueron` },
+        { id: 'labrador', de: 'Los vecinos del norte', n: 'El norte en hora pico', d: 'Dos días con El Labrador, Jipijapa e Iñaquito en 80 de ánimo o más.', veces: 2, plazo: 4, premio: 2500, desde: 2,
+            ok: (S) => animoDe(S, [12, 13, 14]) >= 80, valor: (S) => `la peor, en ${Math.round(animoDe(S, [12, 13, 14]))}` },
+        { id: 'redondo', de: 'El directorio', n: 'Dos días redondos', d: 'Dos días de tres estrellas.', veces: 2, plazo: 5, premio: 5000, desde: 3,
+            ok: (S, c) => c.est >= 3, valor: (S, c) => `${c.est} estrellas` },
+        { id: 'decisiones', de: 'La prensa', n: 'Sin escándalos', d: 'Tres días seguidos sin que una decisión le quite al ánimo más de un punto.', veces: 3, seguidos: true, plazo: 5, premio: 3000, desde: 3,
+            ok: (S) => (S.porCausa().decision || 0) < 1, valor: (S) => `${coma(S.porCausa().decision || 0)} puntos por decisiones` },
+    ];
+
+    // ───────────────────────── La dificultad ─────────────────────────
+    // Se elige al empezar una partida. Mueve la meta de ánimo de todos los días, la caja inicial y los premios.
+    const DIFICULTADES = {
+        tranquilo: { n: 'Tranquilo', d: 'Las metas de ánimo bajan 6 puntos y empiezas con más plata. Para conocer la línea sin apuro.', meta: -6, caja: 12000, premio: 1 },
+        normal: { n: 'Normal', d: 'Como fue pensado: cada día trae algo nuevo y la caja se cuida sola si juegas bien.', meta: 0, caja: 8000, premio: 1 },
+        exigente: { n: 'Exigente', d: 'Las metas suben 4 puntos, empiezas con menos plata y los premios son un 25% mayores.', meta: 4, caja: 5000, premio: 1.25 },
+    };
 
     // ───────────────────────── El turno sin fin ─────────────────────────
     // La fecha de cada día sale del calendario de verdad: qué día es, si es feriado y cuánta gente se mueve según
@@ -566,13 +725,29 @@ const CAMPANA = (() => {
     };
 
     /**
+     * Cuánta más gente usa el Metro con el paso del tiempo, frente a diciembre de 2026 (1 = igual). La línea creció
+     * rápido al abrir y ahora crece despacio: unos 205.000 viajes en un día laborable de 2025 y 2026, con récords de
+     * 274.000. Aquí sigue esa curva: cerca de un 8% el primer año, un 14% al segundo, y se acerca a un 22% más
+     * (unos 250.000 viajes diarios), cuando la línea ya va llena en las horas pico y no le cabe mucha más gente.
+     */
+    const INICIO_SINFIN = new Date(2026, 11, 7);
+    const aniosDe = (fecha) => Math.max(0, (fecha - INICIO_SINFIN) / 864e5 / 365.25);
+    const crecimiento = (fecha) => 1 + 0.22 * (1 - Math.exp(-aniosDe(fecha) / 2));
+    /**
+     * Las vacaciones escolares de la Sierra (de julio a la primera semana de septiembre) sacan de la calle a los
+     * colegios: en esos meses un día laborable mueve menos gente. Estimado: un 9% menos.
+     */
+    const vacaciones = (fecha, c) => (c.tipo === 'laborable' && (fecha.getMonth() === 6 || fecha.getMonth() === 7 || (fecha.getMonth() === 8 && fecha.getDate() <= 4)) ? 0.91 : 1);
+
+    /**
      * El día número `n` del turno sin fin. Con la misma semilla sale siempre el mismo día. La fecha manda: el
-     * calendario dice qué día es y cuánta gente se mueve; encima, cada día hay un poco más de gente que el
-     * anterior, una meta algo más alta y más cosas pasando a la vez.
+     * calendario dice qué día es y cuánta gente se mueve; encima, la línea crece despacio con los meses (como en la
+     * realidad), y lo que se pone difícil es todo lo demás: la meta sube, los trenes envejecen y se averían más, la
+     * plata rinde menos y pasan más cosas a la vez.
      */
     const generar = (n, semilla) => {
         const rnd = azar(semilla * 131 + n * 7919), entre = (a, b) => a + rnd() * (b - a), ent = (a, b) => Math.floor(entre(a, b + 1)), uno = (l) => l[Math.floor(rnd() * l.length)];
-        const fecha = fechaDe(n, semilla), c = CAL.de(fecha), k = n - 7, crece = Math.min(2, 1 + 0.03 * k), fuerza = Math.min(1.6, 1 + 0.025 * k);
+        const fecha = fechaDe(n, semilla), c = CAL.de(fecha), k = n - 7, anios = aniosDe(fecha), crece = crecimiento(fecha) * vacaciones(fecha, c), fuerza = Math.min(1.3, 1 + 0.015 * k);
         const X = c.n && TEXTURA[c.n] ? TEXTURA[c.n](fuerza) : {}, feriado = c.feriado, flojo = c.tono === 'baja' && (feriado || c.dow >= 5);
         const D = { n: c.dia, corto: `Día ${n}`, fecha: fechaTxt(fecha), sinfin: true, numero: n };
         if (c.tipo !== 'laborable') { D.abre = c.abre; D.fijo = c.tipo === 'sabado' ? 0.68 : 0.62; D.calma = feriado ? 2 : 1; }      // sin apuro: se espera más tranquilo
@@ -588,22 +763,29 @@ const CAMPANA = (() => {
         // se divide por el peso del reparto por horas para que la fracción se cumpla sea cual sea ese reparto.
         const propios = eventos.reduce((a, e) => a + e.porMin * (e.a - e.de) * 60, 0) / 205000;
         D.demanda = Math.max(c.factor * crece * 0.5, c.factor * crece - propios) / SIM.nivelDe(D);
-        if (D.fijo || crece > 1) D.fijo = (D.fijo || 1) * crece;      // más gente es también más personal, más limpieza y más seguridad
-        D.meta = Math.min(86, 74 + Math.floor(k / 2)) - (flojo ? 4 : 0);
+        // Más gente es también más personal, más limpieza y más seguridad; y los sueldos y la energía suben con los años
+        // (cerca de un 3% al año), mientras el pasaje sigue en 45 centavos.
+        D.fijo = (D.fijo || 1) * Math.max(1, crece) * (1 + 0.03 * anios);
+        D.meta = Math.min(86, 74 + Math.floor(k / 3)) - (flojo ? 4 : 0);
         if (X.imanes) D.imanes = X.imanes;
         // Lo que dice el calendario de la fecha: el tablero lo muestra aparte, con su cifra.
         D.hito = c.n ? { n: c.n, sube: subeDe(c), pct: CAL.pct(c.cambio), frente: feriado && c.dow < 5 ? 'un día laborable' : `un ${c.dia.toLowerCase()} normal`, real: c.real, dato: c.dato, feriado } : null;
         parte.push(c.tipo === 'laborable' ? `Día laborable: de 05:30 a ${hhmm(cierra)}` : `${feriado ? 'Feriado' : c.tipo === 'sabado' ? 'Sábado' : 'Domingo'}: de 07:00 a ${hhmm(cierra)}`);
         if (X.parte) parte.push(...X.parte);
         if (flojo) parte.push('Con tan pocos pasajes, lo difícil hoy es la caja: espacia los trenes');
-        parte.push(`Además, el Metro ya lleva un ${Math.round((crece - 1) * 100)}% más de gente que cuando lo recibiste`);
-        // Cuántas cosas más pasan hoy: dos al principio (una, si la fecha ya trae lo suyo), y cada dos días una más.
-        const seca = fecha.getMonth() >= 5 && fecha.getMonth() <= 8;      // de junio a septiembre casi no llueve en Quito
-        const bolsa = ['lluvia', 'taller', 'averias', 'evento', 'maquinas', 'paro', 'granizada', 'evento']
+        const masGente = Math.round((crecimiento(fecha) - 1) * 100);
+        if (vacaciones(fecha, c) < 1) parte.push('Vacaciones escolares en la Sierra: hay menos gente en las horas pico');
+        if (masGente >= 1) parte.push(`La línea ya lleva un ${masGente}% más de gente que cuando la recibiste`);
+        if (k >= 6) parte.push(`Los trenes ya llevan ${k} días más de uso: hay más averías`);
+        // Cuántas cosas más pasan hoy: dos al principio (una, si la fecha ya trae lo suyo), y cada cuatro días una más.
+        // De junio a septiembre casi no llueve en Quito; de febrero a mayo y en octubre y noviembre, llueve casi todas las tardes.
+        const mes = fecha.getMonth(), seca = mes >= 5 && mes <= 8, lluviosa = (mes >= 1 && mes <= 4) || mes === 9 || mes === 10;
+        const bolsa = ['lluvia', 'taller', 'averias', 'evento', 'maquinas', 'paro', 'granizada', 'evento'].concat(lluviosa ? ['lluvia', 'granizada'] : [])
             .filter((q) => !(seca && (q === 'lluvia' || q === 'granizada') && rnd() < 0.85) && !(feriado && q === 'paro') && !(flojo && q === 'evento'));      // en un feriado flojo no hay paro ni conciertos
         for (let i = bolsa.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [bolsa[i], bolsa[j]] = [bolsa[j], bolsa[i]]; }
         let mojado = false, hora0 = 0;
-        for (const q of bolsa.slice(0, Math.min(6, (c.n ? 1 : 2) + Math.floor(k / 2)))) {
+        const propiosEventos = eventos.length > 0;      // una fecha con lo suyo (la procesión, los años viejos) no suma un concierto al azar
+        for (const q of bolsa.slice(0, Math.min(5, (c.n ? 1 : 2) + Math.floor(k / 4)))) {
             if (q === 'lluvia' && !mojado) {
                 const de = entre(13, 17.5), a = Math.min(de + entre(1.5, 3), cierra); mojado = true; hora0 = de; D.lluvia = [de, a, 1];
                 titulos.push('Aguacero'); parte.push(`Aguacero de ${hhmm(de)} a ${hhmm(a)}`);
@@ -616,10 +798,10 @@ const CAMPANA = (() => {
             } else if (q === 'taller' && !D.trenesFuera) {
                 D.trenesFuera = Math.min(4, ent(1, 2) + Math.floor(k / 6)); titulos.push('Trenes en el taller'); parte.push(`${D.trenesFuera} ${D.trenesFuera > 1 ? 'trenes' : 'tren'} en el taller`);
             } else if (q === 'averias') {
-                const cuantas = Math.min(4, ent(1, 2) + Math.floor(k / 5));
+                const cuantas = Math.min(5, ent(1, 2) + Math.floor(k / 6));      // los trenes envejecen
                 for (let i = 0; i < cuantas; i++) sucesos.push({ hora: entre(abre + 1, cierra - 2), tipo: 'averia', est: ent(1, 13), min: ent(7, 12) });
                 titulos.push('Averías'); parte.push('El taller avisa de trenes con fallas pendientes: puede haber averías');
-            } else if (q === 'evento') {
+            } else if (q === 'evento' && !propiosEventos) {
                 const libres = EVENTOS.filter((e) => !eventos.some((x) => x.est === e.est[0][0])); if (!libres.length) continue;
                 const ev = uno(libres), fin = entre(Math.max(abre + 5, 12.5), cierra - 1.6);
                 ev.est.forEach(([i, peso], x) => eventos.push({ est: i, de: fin, a: fin + 1.2, porMin: Math.min(270, 130 + 12 * k) * peso, sitio: ev.sitio, n: x ? undefined : ev.n }));
@@ -634,15 +816,16 @@ const CAMPANA = (() => {
         // Las decisiones: las que trae la fecha y, además, de una a cuatro del repertorio, repartidas en el día.
         const usadas = new Set(), propias = (c.dec ? [c.dec] : []).concat(X.decisiones || []);
         for (const [d, hora, est] of propias) if (DECISIONES[d] && hora < cierra - 0.5) { usadas.add(d); sucesos.push(dec(d, hora, est)); }
-        const libres = ['musico', 'colegio', 'vendedores', 'puerta', 'viral', 'via', 'tension', 'mochila', 'desmayo', 'bono', 'perro', 'tarjetas', 'escalera', 'carterista', 'aire', 'grafiti']
-            .concat(mojado ? ['gotera', 'gotera'] : [], c.tipo !== 'laborable' ? ['bicis'] : ['visita', 'protesta'], c.carnaval ? ['carnavaleros'] : []).filter((d) => !(c.tipo !== 'laborable' && (d === 'colegio' || d === 'bono')));
+        const libres = ['musico', 'colegio', 'vendedores', 'puerta', 'viral', 'via', 'tension', 'mochila', 'desmayo', 'bono', 'perro', 'tarjetas', 'escalera', 'carterista', 'aire', 'grafiti', 'luz']
+            .concat(mojado ? ['gotera', 'gotera'] : [], c.tipo !== 'laborable' ? ['bicis'] : ['visita', 'protesta', 'trole', 'estudiantes'], c.carnaval ? ['carnavaleros'] : [])
+            .filter((d) => !(c.tipo !== 'laborable' && (d === 'colegio' || d === 'bono')) && !(vacaciones(fecha, c) < 1 && (d === 'colegio' || d === 'estudiantes')));
         const cuantas = Math.max(0, Math.min(4, 1 + Math.floor(k / 3) + (rnd() < 0.5 ? 1 : 0)) - propias.length), ESTACION = { gotera: [5, 7, 9, 13], vendedores: [0, 2, 4, 14], musico: [6, 8, 11], tarjetas: [0, 4, 12, 14], carterista: [0, 4, 6, 11, 12], carnavaleros: [0, 4, 8, 11] };
         for (let i = 0; i < cuantas; i++) {
             let d = uno(libres), vueltas = 0; while (usadas.has(d) && vueltas++ < 30) d = uno(libres);
             if (usadas.has(d)) break;
             usadas.add(d);
             const tramo = (cierra - abre - 3) / cuantas;
-            const hora = d === 'gotera' ? hora0 + entre(0.5, 1.2) : d === 'bono' || d === 'grafiti' ? abre + 0.3 + i * 0.1 : d === 'visita' ? 8.8 : entre(abre + 1 + i * tramo, abre + 1 + (i + 1) * tramo);
+            const hora = d === 'gotera' ? hora0 + entre(0.5, 1.2) : d === 'bono' || d === 'grafiti' ? abre + 0.3 + i * 0.1 : d === 'visita' ? 8.8 : d === 'trole' ? uno([7.1, 17.6]) : entre(abre + 1 + i * tramo, abre + 1 + (i + 1) * tramo);
             sucesos.push(dec(d, hora, ESTACION[d] ? uno(ESTACION[d]) : ent(1, 13)));
         }
         sucesos.sort((p, q) => p.hora - q.hora);
@@ -655,6 +838,6 @@ const CAMPANA = (() => {
         return D;
     };
 
-    return { DIAS, MEJORAS, RANGOS, DECISIONES, generar, fechaDe, proximas, NOMBRE };
+    return { DIAS, MEJORAS, RANGOS, DECISIONES, MISIONES, DIFICULTADES, generar, fechaDe, proximas, conSecuelas, siguen, crecimiento, NOMBRE };
 })();
 if (typeof module !== 'undefined') module.exports = CAMPANA;

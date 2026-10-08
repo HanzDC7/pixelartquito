@@ -69,12 +69,27 @@ const JEFE = (() => {
         { n: 'Madrugada', de: 5.5, a: 6.5 }, { n: 'Pico de la mañana', de: 6.5, a: 10 }, { n: 'Media mañana', de: 10, a: 12 },
         { n: 'Mediodía', de: 12, a: 14 }, { n: 'Tarde', de: 14, a: 17 }, { n: 'Pico de la tarde', de: 17, a: 20 }, { n: 'Noche', de: 20, a: 23 },
     ];
+    // Sábados, domingos y feriados: el Metro abre a las 07:00, no hay picos de oficina y la gente sale a pasear desde el
+    // mediodía. Las franjas de esos días son otras, y su horario se decide aparte del de entre semana.
+    const FRANJAS_FINDE = [
+        { n: 'Temprano', de: 7, a: 9 }, { n: 'Media mañana', de: 9, a: 11 }, { n: 'Mediodía', de: 11, a: 14 },
+        { n: 'Tarde', de: 14, a: 17 }, { n: 'Tarde de paseo', de: 17, a: 20 }, { n: 'Vuelta a casa', de: 20, a: 22 }, { n: 'Última hora', de: 22, a: 23 },
+    ];
     const INTERVALOS = [3, 4, 5, 6, 8, 10, 12, 15];
-    const franjaDe = (h) => { for (let i = 0; i < FRANJAS.length; i++) if (h < FRANJAS[i].a) return i; return FRANJAS.length - 1; };
+    /** ¿Es un día de fin de semana o feriado? Se reconoce porque abre a las 07:00. */
+    const esFinde = (dia) => (dia.abre || 5.5) >= 7;
+    const franjasDe = (dia) => (esFinde(dia) ? FRANJAS_FINDE : FRANJAS);
+    const franjaDe = (h, fr = FRANJAS) => { for (let i = 0; i < fr.length; i++) if (h < fr[i].a) return i; return fr.length - 1; };
+    /** Para qué versión de la simulación se guardó un turno a medias: si cambian las reglas, la bitácora ya no rehace el mismo día. */
+    const VERSION = 2;
+    // Por qué se queja la gente. Sirve para el informe: cuánto ánimo se perdió por cada cosa, dónde y a qué hora.
+    const CAUSAS = ['fila', 'anden', 'lleno', 'apretado', 'cierre', 'fin', 'decision', 'evento'];
+    const HORAS = 30;
 
     // La plata. Un día bien llevado deja un pequeño saldo a favor.
     const COSTO = { km: 6.5, trenMin: 0.45, ventanillaHora: 9, fijoHora: 1650, maquina: 2500, maquinaHora: 0.6 };
     const PAGO = { ventanilla: 7, maquina: 5 };     // pasajeros por minuto que despacha cada una
+    const SUGERIDO = 10.5;      // minutos de intervalo que pide una hora de demanda media; el pico de la mañana pide menos de la mitad
     const TARIFA_MEDIA = TARIFA * 0.85 + 0.22 * 0.12 + 0.10 * 0.03;    // la mayoría paga la tarifa completa
     /** Qué tan fuerte llueve a la hora `h`: 0, 1 (aguacero) o 2 (tormenta con granizo). */
     const lluviaDe = (dia, h) => (dia.lluvia && h >= dia.lluvia[0] && h < dia.lluvia[1] ? dia.lluvia[2] || 1 : 0);
@@ -91,8 +106,8 @@ const JEFE = (() => {
         return suma / integral;
     };
     /** El pronóstico: cuántos viajes se esperan en cada franja del horario. No sabe de imprevistos. */
-    const pronostico = (dia, cierra = dia.cierra || 23) => FRANJAS.map((f, k) => {
-        let suma = 0; const fin = k === FRANJAS.length - 1 ? Math.max(f.a, cierra) : f.a;
+    const pronostico = (dia, cierra = dia.cierra || 23) => franjasDe(dia).map((f, k, fr) => {
+        let suma = 0; const fin = k === fr.length - 1 ? Math.max(f.a, cierra) : f.a;
         for (let h = Math.max(f.de, dia.abre || 5.5); h < Math.min(fin, cierra) - 1e-9; h += 1 / 12) {
             suma += ritmoDe(dia, h) * 5;
             for (const ev of dia.eventos || []) if (h >= ev.de && h < ev.a) suma += ev.porMin * 5;
@@ -125,7 +140,8 @@ const JEFE = (() => {
             i, n: e.n, c: e.c, pos: pos[i],
             ventanillas: plan.ventanillas ? plan.ventanillas[i] : (e.casa + e.destino > 0.2 ? 2 : 1), maquinas: plan.maquinas[i],
             cola: new Float32Array(N), colaTotal: 0, colaEdad: 0,
-            anden: [{ d: new Float32Array(N), total: 0, edad: 0 }, { d: new Float32Array(N), total: 0, edad: 0 }],   // 0: hacia el norte · 1: hacia el sur
+            // 0: hacia el norte · 1: hacia el sur. «vistos»: cuántos de los que esperan ya vieron pasar un tren lleno (para contarlos una sola vez).
+            anden: [{ d: new Float32Array(N), total: 0, edad: 0, vistos: 0 }, { d: new Float32Array(N), total: 0, edad: 0, vistos: 0 }],
             animo: 78, entradas: 0, idos: 0, dejados: 0, esperaB: 0,
             cerrada: 0, gratis: 0, lenta: 0, lentaF: 1, prepago: 0, avisada: -999,
         }));
@@ -137,26 +153,41 @@ const JEFE = (() => {
             t: abre, abre, cierra: (dia.cierra || 23) * 60, est, trenes, L, flota, enTaller: fuera0, terminado: false,
             pasos: 0, bitacora: [],                    // cuántos pasos lleva el día y qué ordenó el jugador en cada uno
             tarjeta: Math.min(0.92, 0.55 + 0.1 * (plan.tarjeta || 0)),
-            horario: (plan.horario || [8, 8, 8, 8, 8, 8, 8]).slice(),
+            horario: (plan.horario || [8, 8, 8, 8, 8, 8, 8]).slice(), franjas: franjasDe(dia), finde: esFinde(dia),
             tramo: [0, N - 1], corte: null,            // entre qué estaciones circulan los trenes, y hasta cuándo dura el corte
             ultimo: [-99, -99], avisos: [], bloqueos: [], maquinasRotas: [], oleadas: [], decisiones: [], elegidas: {}, notas: {},
             animo: 78, sumaAnimo: 0, pesoAnimo: 0, lluvia: 0,
             gratis: 0, gratisPaga: 0, lento: 0, lentoF: 1, paradaLenta: 0, paradaF: 1,
             cuenta: { viajes: 0, demanda: 0, idos: 0, idosFila: 0, idosAnden: 0, idosCierre: 0, dejados: 0, ingresos: 0, trenes: 0, personal: 0, fijo: 0, compras: 0, imprevistos: 0, esperaSuma: 0, esperaN: 0, km: 0, salidas: 0, refuerzos: 0, ociosas: 0 },
-            porHora: [],
+            porHora: [], quejas: {}, contexto: '', decididas: [], secuelas: [],
         };
         const hechos = new Set(), tareas = [];
         let alarma = -999, ronda = abre, acum = 0;
         const aviso = (tipo, texto, i = -1, mapa = false) => S.avisos.push({ tipo, texto, i, t: S.t, mapa });      // `mapa`: algo que pasa en la ciudad y conviene mirar ahí
         const miles = (v) => Math.round(v).toLocaleString('de-DE');
 
-        /** Una opinión: `n` pasajeros que califican su viaje con `nota` (0 a 100). Mueve el ánimo general y el de la estación. */
-        const opinar = (e, nota, n) => {
+        /** Anota de dónde salió una queja: `pts` son puntos de nota por persona, sumados. */
+        const quejar = (i, causa, pts) => {
+            if (!(pts > 0)) return;
+            const q = S.quejas[causa] || (S.quejas[causa] = new Float64Array((N + 1) * HORAS));
+            q[(i < 0 ? N : i) * HORAS + Math.min(HORAS - 1, Math.floor(S.t / 60))] += pts;
+        };
+        /**
+         * Una opinión: `n` pasajeros que califican su viaje con `nota` (0 a 100). Mueve el ánimo general y el de la
+         * estación. `causa` dice por qué no fue un 100: una de CAUSAS, o un objeto { causa: peso } si fueron varias.
+         * `donde` es la estación a la que se le anota la queja, si no es `e`.
+         */
+        const opinar = (e, nota, n, causa = 'evento', donde = e ? e.i : -1) => {
             if (n <= 0) return;
             nota = Math.max(0, Math.min(100, nota));
             S.sumaAnimo += nota * n; S.pesoAnimo += n;
             S.animo += (nota - S.animo) * (n / (n + 5000));
             if (e) e.animo += (nota - e.animo) * (n / (n + 700));
+            const falta = (100 - nota) * n;
+            if (falta <= 0) return;
+            if (typeof causa === 'string') { quejar(donde, causa, falta); return; }
+            let total = 0; for (const k in causa) total += causa[k];
+            for (const k in causa) if (causa[k] > 0) quejar(donde, k, falta * causa[k] / total);
         };
 
         const fuera = (t) => t.estado === 'cochera' || t.estado === 'taller';
@@ -171,8 +202,8 @@ const JEFE = (() => {
         /** Quien estaba dentro de una estación que se cierra tiene que salir. */
         const evacuar = (e) => {
             const n = e.colaTotal + e.anden[0].total + e.anden[1].total;
-            if (n > 1) { e.idos += n; S.cuenta.idos += n; S.cuenta.idosCierre += n; opinar(e, 25, n); }
-            e.cola.fill(0); e.colaTotal = 0; e.colaEdad = 0; for (const a of e.anden) { a.d.fill(0); a.total = 0; a.edad = 0; }
+            if (n > 1) { e.idos += n; S.cuenta.idos += n; S.cuenta.idosCierre += n; opinar(e, 25, n, 'cierre'); }
+            e.cola.fill(0); e.colaTotal = 0; e.colaEdad = 0; for (const a of e.anden) { a.d.fill(0); a.total = 0; a.edad = 0; a.vistos = 0; }
         };
 
         /** Baja y sube gente en la estación `e`. Devuelve cuántos se movieron, para alargar la parada. */
@@ -181,22 +212,24 @@ const JEFE = (() => {
             if (terminal(t.dir, e.i)) {
                 // Fin del recorrido: si el tramo está cortado, aquí se baja también quien iba más lejos.
                 const resto = t.total;
-                if (resto > 1) { S.cuenta.viajes += resto; opinar(e, 40, resto * 0.7); t.carga.fill(0); t.total = 0; }
+                if (resto > 1) { S.cuenta.viajes += resto; opinar(e, 40, resto * 0.7, 'cierre'); t.carga.fill(0); t.total = 0; }
                 return baja + resto;
             }
             const a = e.anden[t.dir], libre = Math.max(0, CAPACIDAD - t.total), sube = Math.min(a.total, libre);
             if (a.total > 0.01) {
                 const media = a.edad / a.total, parte = sube / a.total, cola = e.esperaB;
                 for (let j = 0; j < N; j++) { const b = a.d[j] * parte; if (b) { t.carga[j] += b; a.d[j] -= b; } }
-                t.total += sube; a.total -= sube; a.edad -= media * sube;
+                t.total += sube; a.total -= sube; a.edad -= media * sube; a.vistos = Math.max(0, a.vistos - sube);      // suben primero los que llevan más rato
                 S.cuenta.esperaSuma += media * sube; S.cuenta.esperaN += sube;
                 // Esperar un par de minutos no molesta a nadie; de ahí en adelante, cada minuto pesa.
-                opinar(e, 100 - Math.max(0, media - AGUANTE) * 9 - Math.max(0, cola - 1.5) * 6, sube);
-                if (a.total > 20) { opinar(e, 10, a.total * 0.8); e.dejados += a.total; S.cuenta.dejados += a.total; }
+                const porAnden = Math.max(0, media - AGUANTE) * 9, porFila = Math.max(0, cola - 1.5) * 6;
+                opinar(e, 100 - porAnden - porFila, sube, { anden: porAnden, fila: porFila });
+                // Quien ve pasar el tren lleno se molesta cada vez; pero se cuenta una sola vez entre los que se quedaron.
+                if (a.total > 20) { opinar(e, 10, a.total * 0.8, 'lleno'); const nuevos = Math.max(0, a.total - a.vistos); e.dejados += nuevos; S.cuenta.dejados += nuevos; a.vistos = a.total; }
             }
             // Ir apretado también cuenta.
             const lleno = t.total / CAPACIDAD;
-            if (lleno > 0.7) opinar(null, 100 - (lleno - 0.7) * 230, t.total / 5);
+            if (lleno > 0.7) opinar(null, 100 - (lleno - 0.7) * 230, t.total / 5, 'apretado', e.i);
             return baja + sube;
         };
         /** Pone un tren en la cabecera `cab` (o donde termine hoy el tramo), con las puertas abiertas. */
@@ -227,7 +260,7 @@ const JEFE = (() => {
                     for (const ev of S.oleadas) if (ev.est === i && S.t >= ev.de && S.t < ev.a) llegan += ev.porMin * dt;
                     S.cuenta.demanda += llegan;
                     // Con la estación cerrada, quien llega se da la vuelta.
-                    if (hayCierres && cerrada(i)) { e.idos += llegan; S.cuenta.idos += llegan; S.cuenta.idosCierre += llegan; opinar(e, 35, llegan); continue; }
+                    if (hayCierres && cerrada(i)) { e.idos += llegan; S.cuenta.idos += llegan; S.cuenta.idosCierre += llegan; opinar(e, 35, llegan, 'cierre'); continue; }
                     e.entradas += llegan;
                     const gratis = gratisTodo || e.gratis > S.t, directo = gratis ? 1 : Math.min(0.95, S.tarjeta + (e.prepago > S.t ? 0.3 : 0));
                     for (let j = 0; j < N; j++) {
@@ -236,8 +269,8 @@ const JEFE = (() => {
                         if (hayCierres) {
                             k = destinoDe(i, j);
                             // No hay cómo llegar: se van. Y quien tiene que bajarse antes viaja, pero a disgusto.
-                            if (k === i) { e.idos += n; S.cuenta.idos += n; S.cuenta.idosCierre += n; opinar(e, 35, n); continue; }
-                            if (k !== j) opinar(e, 50, n * 0.5);
+                            if (k === i) { e.idos += n; S.cuenta.idos += n; S.cuenta.idosCierre += n; opinar(e, 35, n, 'cierre'); continue; }
+                            if (k !== j) opinar(e, 50, n * 0.5, 'cierre');
                         }
                         const pasan = n * directo, a = e.anden[k > i ? 0 : 1];
                         a.d[k] += pasan; a.total += pasan; S.cuenta.ingresos += pasan * TARIFA_MEDIA * INGRESO * (gratis ? S.gratisPaga : 1);
@@ -257,12 +290,12 @@ const JEFE = (() => {
                     for (let j = 0; j < N; j++) { const n = e.cola[j] * parte; if (!n) continue; e.cola[j] -= n; const a = e.anden[j > e.i ? 0 : 1]; a.d[j] += n; a.total += n; }
                     e.colaEdad -= (e.colaEdad / e.colaTotal) * pasan; e.colaTotal -= pasan; S.cuenta.ingresos += pasan * TARIFA_MEDIA * INGRESO * (gratis ? S.gratisPaga : 1);
                     // Quien lleva más de cinco minutos en la fila empieza a irse.
-                    if (e.esperaB > 5 && e.colaTotal > 0.01) { const sevan = e.colaTotal * Math.min(1, 0.09 * dt), p = sevan / e.colaTotal; for (let j = 0; j < N; j++) e.cola[j] *= 1 - p; e.colaTotal -= sevan; e.idos += sevan; S.cuenta.idos += sevan; S.cuenta.idosFila += sevan; opinar(e, 0, sevan); }
+                    if (e.esperaB > 5 && e.colaTotal > 0.01) { const sevan = e.colaTotal * Math.min(1, 0.09 * dt), p = sevan / e.colaTotal; for (let j = 0; j < N; j++) e.cola[j] *= 1 - p; e.colaTotal -= sevan; e.idos += sevan; S.cuenta.idos += sevan; S.cuenta.idosFila += sevan; opinar(e, 0, sevan, 'fila'); }
                 }
                 // En el andén la paciencia dura más, pero también se acaba.
                 for (const a of e.anden) {
                     a.edad += a.total * dt;
-                    if (a.total > 1 && a.edad / a.total > PACIENCIA) { const sevan = a.total * Math.min(1, 0.06 * dt), p = sevan / a.total; for (let j = 0; j < N; j++) a.d[j] *= 1 - p; a.edad *= 1 - p; a.total -= sevan; e.idos += sevan; S.cuenta.idos += sevan; S.cuenta.idosAnden += sevan; opinar(e, 0, sevan); }
+                    if (a.total > 1 && a.edad / a.total > PACIENCIA) { const sevan = a.total * Math.min(1, 0.06 * dt), p = sevan / a.total; for (let j = 0; j < N; j++) a.d[j] *= 1 - p; a.edad *= 1 - p; a.vistos *= 1 - p; a.total -= sevan; e.idos += sevan; S.cuenta.idos += sevan; S.cuenta.idosAnden += sevan; opinar(e, 0, sevan, 'anden'); }
                 }
                 if (!cerrada(e.i)) {
                     S.cuenta.personal += e.ventanillas * COSTO.ventanillaHora / 60 * dt + e.maquinas * COSTO.maquinaHora / 60 * dt;
@@ -303,7 +336,7 @@ const JEFE = (() => {
             }
 
             // 4. Las salidas desde las cabeceras, cada tantos minutos según el horario.
-            const cada = S.horario[franjaDe(h)];
+            const cada = S.horario[franjaDe(h, S.franjas)];
             for (let cab = 0; cab < 2; cab++) {
                 const listos = trenes.filter((t) => t.estado === 'listo' && t.cab === cab);
                 if (abierto && S.t - S.ultimo[cab] >= cada) {
@@ -328,6 +361,7 @@ const JEFE = (() => {
                 else if (ev.tipo === 'lenta') { S.boleteriaLenta(ev.est, ev.min, ev.f); if (ev.texto) aviso(ev.tono || 'info', ev.texto, ev.est); }
                 else if (ev.tipo === 'oleada') S.oleada(ev.est, ev.min, ev.porMin);
                 else if (ev.tipo === 'decision') S.decisiones.push(ev);
+                else if (ev.tipo === 'fx') { const dicho = ev.f(S); if (dicho || ev.texto) aviso(ev.tono || 'info', dicho || ev.texto, ev.est === undefined ? -1 : ev.est, !!ev.mapa); }
             });
             for (let k = tareas.length - 1; k >= 0; k--) if (S.t >= tareas[k].t) { const f = tareas[k].f; tareas.splice(k, 1); f(S); }
 
@@ -359,7 +393,7 @@ const JEFE = (() => {
             if (dia.corte && S.t >= S.cierra) { S.terminado = true; return; }
             // Después del cierre, el día acaba cuando el último tren deja a su gente.
             if (S.t >= S.cierra && (S.t > S.cierra + 50 || trenes.every((t) => t.total < 1))) {
-                for (const e of est) { const quedan = e.colaTotal + e.anden[0].total + e.anden[1].total; if (quedan > 1) { e.idos += quedan; S.cuenta.idos += quedan; opinar(e, 0, quedan); } }
+                for (const e of est) { const quedan = e.colaTotal + e.anden[0].total + e.anden[1].total; if (quedan > 1) { e.idos += quedan; S.cuenta.idos += quedan; opinar(e, 0, quedan, 'fin'); } }
                 S.terminado = true;
             }
         };
@@ -393,13 +427,64 @@ const JEFE = (() => {
         S.animoDia = () => (S.pesoAnimo ? S.sumaAnimo / S.pesoAnimo : S.animo);
         S.esperaMedia = () => (S.cuenta.esperaN ? S.cuenta.esperaSuma / S.cuenta.esperaN : 0);
         S.pronostico = () => pronostico(dia, S.cierra / 60);
+        S.franjaDe = (h) => franjaDe(h, S.franjas);
+        /**
+         * Por qué el ánimo del día no fue 100: una lista de { causa, i, puntos, de, a }, de la que más pesó a la que
+         * menos. `puntos` son puntos de ánimo del día (la suma de todas da 100 menos el ánimo). `i` es la estación (−1:
+         * toda la línea) y `de`–`a`, las horas en que se concentró. Las causas de una decisión vienen como 'd:id'.
+         */
+        S.porque = () => {
+            const l = [], peso = S.pesoAnimo || 1;
+            for (const causa in S.quejas) {
+                const q = S.quejas[causa];
+                for (let i = 0; i <= N; i++) {
+                    let suma = 0, max = 0, hm = 0;
+                    for (let h = 0; h < HORAS; h++) { const v = q[i * HORAS + h]; suma += v; if (v > max) { max = v; hm = h; } }
+                    if (suma <= 0) continue;
+                    let de = hm, a = hm;
+                    while (de > 0 && q[i * HORAS + de - 1] >= max * 0.3) de--;
+                    while (a < HORAS - 1 && q[i * HORAS + a + 1] >= max * 0.3) a++;
+                    l.push({ causa, i: i === N ? -1 : i, puntos: suma / peso, de, a: a + 1 });
+                }
+            }
+            return l.sort((p, q) => q.puntos - p.puntos);
+        };
+        /** Cuánto pesó cada causa en todo el día, en puntos de ánimo: { causa: puntos }. Las decisiones van juntas en 'decision'. */
+        S.porCausa = () => {
+            const r = {}, peso = S.pesoAnimo || 1;
+            for (const causa in S.quejas) { const k = causa.startsWith('d:') ? 'decision' : causa; r[k] = (r[k] || 0) + S.quejas[causa].reduce((x, y) => x + y, 0) / peso; }
+            return r;
+        };
+        /**
+         * Un horario razonable para hoy, a partir del pronóstico (sin imprevistos): en cada franja, un intervalo que
+         * alcance para la media hora más cargada, sin pedir más trenes de los que hay. Es un punto de partida, no el
+         * óptimo: no sabe de averías, de lluvia ni de la caja.
+         */
+        S.sugerir = () => {
+            const base = VIAJES_DIA / integral / 60, abreH = S.abre / 60, cierraH = S.cierra / 60;
+            return S.franjas.map((f, k) => {
+                const fin = k === S.franjas.length - 1 ? Math.max(f.a, cierraH) : f.a, de = Math.max(f.de, abreH), a = Math.min(fin, cierraH);
+                if (a <= de) return S.horario[k];
+                let pico = 0;
+                for (let h = de; h < a - 1e-9; h += 1 / 12) {
+                    let r = 0;
+                    for (let x = h; x < Math.min(a, h + 0.5) - 1e-9; x += 1 / 12) { r += ritmoDe(dia, x); for (const ev of dia.eventos || []) if (x >= ev.de && x < ev.a) r += ev.porMin; }
+                    pico = Math.max(pico, r / Math.max(1, Math.round((Math.min(a, h + 0.5) - h) * 12)));
+                }
+                const objetivo = SUGERIDO * (1 + 0.15 * (dia.calma || 0)) / Math.max(0.05, pico / base);
+                // Más de 12 minutos entre trenes no se sugiere nunca de día: una avería y la espera se vuelve de media hora.
+                let cada = Math.min(k === S.franjas.length - 1 ? 15 : 12, INTERVALOS.filter((v) => v <= objetivo).pop() || INTERVALOS[0]);
+                while (S.trenesPara(cada) > S.flota && cada < INTERVALOS[INTERVALOS.length - 1]) cada = INTERVALOS[INTERVALOS.indexOf(cada) + 1];
+                return cada;
+            });
+        };
 
         // ───── Lo que un imprevisto o una decisión puede mover ─────
         const cuales = (i) => (i < 0 ? est : [est[i]]);
         /** Un gasto imprevisto. */
         S.gasto = (monto) => { S.cuenta.imprevistos += monto; };
-        /** `n` personas opinan `nota` (0 a 100) en la estación `i`, o en toda la línea si `i` es −1. */
-        S.opinion = (i, nota, n) => { if (i < 0) opinar(null, nota, n); else opinar(est[i], nota, n); };
+        /** `n` personas opinan `nota` (0 a 100) en la estación `i`, o en toda la línea si `i` es −1. `causa`: de dónde viene, para el informe. */
+        S.opinion = (i, nota, n, causa = S.contexto || 'evento') => { if (i < 0) opinar(null, nota, n, causa); else opinar(est[i], nota, n, causa); };
         /** Una estación se cierra `min` minutos: nadie entra y los trenes pasan de largo. Devuelve cuánto dura de verdad: con bombas de achique, la mitad (salvo que el cierre sea `exacto`, por algo que no es agua). */
         S.cerrarEstacion = (i, min, exacto = false) => { const dura = min * (exacto ? 1 : ACHIQUE); est[i].cerrada = S.t + dura; evacuar(est[i]); return dura; };
         /** La abre antes de tiempo. */
@@ -478,6 +563,8 @@ const JEFE = (() => {
         /** Algo que pasará dentro de `min` minutos. */
         S.luego = (min, f) => { tareas.push({ t: S.t + min, f }); };
         S.avisar = aviso;
+        /** Algo que hoy deja pendiente para el próximo día: lo interpreta la campaña (CAMPANA.conSecuelas). */
+        S.manana = (x) => { S.secuelas.push(x); };
         /**
          * Lo que ordena el jugador. Cada orden queda en la bitácora con el paso en que se dio, para poder repetir el día.
          *   horario(franja, minutos) · ventanillas(estación, cuántas) · maquina(estación) · refuerzo(cabecera) · decidir(id, opción)
@@ -494,7 +581,9 @@ const JEFE = (() => {
         S.decidir = (ev, k) => {
             const j = S.decisiones.indexOf(ev); if (j >= 0) S.decisiones.splice(j, 1);
             const op = ev.opciones[k]; S.elegidas[ev.id] = k;
+            S.contexto = 'd:' + ev.id;       // lo que la decisión le haga al ánimo se anota a su nombre
             const dicho = op.fx ? op.fx(S, plan) : null;
+            S.contexto = ''; S.decididas.push({ id: ev.id, titulo: ev.titulo, opcion: op.t, k, t: S.t });
             if (dicho || op.r) aviso(op.tono || 'info', dicho || op.r, ev.est === undefined ? -1 : ev.est);
         };
         return S;
@@ -511,6 +600,6 @@ const JEFE = (() => {
         return S;
     };
 
-    return { crear, restaurar, pronostico, nivelDe, ESTACIONES, FRANJAS, INTERVALOS, franjaDe, COSTO, PAGO, PASO, TARIFA, CAPACIDAD, FLOTA, ABRE, CIERRA, N };
+    return { crear, restaurar, pronostico, nivelDe, ESTACIONES, FRANJAS, FRANJAS_FINDE, INTERVALOS, franjaDe, franjasDe, esFinde, CAUSAS, VERSION, COSTO, PAGO, PASO, TARIFA, CAPACIDAD, FLOTA, ABRE, CIERRA, N };
 })();
 if (typeof module !== 'undefined') module.exports = JEFE;

@@ -404,3 +404,42 @@ button.chico { flex: 0 0 auto; }
 #jfin .logros .logro.hecho strong { color: var(--gold); }
 #jfin .logros .logro span { font: 11.5px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--dim); }
 @media (max-width: 560px) { #jfin .logros { grid-template-columns: 1fr; } }
+
+/* ───── Jefe de línea: misiones, dificultad, horario sugerido y el «por qué» del informe ───── */
+#jefe .jmisiones { display: grid; gap: 1px; }
+#jefe .jmisiones:empty { display: none; }
+#jefe .jmision { color: #B9C6E8; }
+#jefe .jmision.bien { color: #3DDC84; }
+#jpanel .acciones { display: flex; justify-content: flex-end; padding: 8px 0 2px; }
+#jpanel .sugerir { border-color: var(--gold); color: var(--gold); }
+#jfin .misiones { margin: 4px 0 10px; padding-top: 8px; border-top: 1px solid var(--line); }
+#jfin .misiones .fila { display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; padding: 5px 0; border-bottom: 1px solid var(--line); }
+#jfin .misiones .fila .nombre { color: #fff; font-size: 12px; }
+#jfin .misiones .fila .nota { grid-column: 1; margin: 0; }
+#jfin .misiones .fila button, #jfin .misiones .fila em { grid-column: 2; grid-row: 1 / 3; align-self: center; min-width: 84px; text-align: center; }
+#jfin .misiones .fila em { font-style: normal; font-size: 11px; color: var(--gold); }
+#jfin .misiones .fila.activa { border-left: 3px solid var(--gold); padding-left: 7px; }
+#jfin .mision { margin: 0 0 5px; font-size: 12px; color: #C8D4F0; }
+#jfin .mision.hecha { color: #3DDC84; }
+#jfin .mision.vencida, #jfin .mision.corta { color: #FF8A3D; }
+#jfin .dificultades { display: grid; gap: 8px; margin: 10px 0 12px; }
+#jfin .dificultad { display: grid; gap: 3px; padding: 10px; text-align: left; white-space: normal; text-transform: none; letter-spacing: 0; }
+#jfin .dificultad strong { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+#jfin .dificultad span { font-size: 12px; opacity: .9; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; line-height: 1.4; }
+#jfin .dificultad em { font-style: normal; font-size: 11px; color: var(--gold); }
+#jfin .dificultad.on em { color: #1A0E04; }
+#jfin .porque { margin: 4px 0 10px; }
+#jfin .causas { display: grid; gap: 4px; margin: 0 0 9px; }
+#jfin .causa { display: grid; grid-template-columns: minmax(120px, 38%) 1fr 44px; gap: 8px; align-items: center; font-size: 11px; }
+#jfin .causa .nombre { color: #C8D4F0; }
+#jfin .causa .barra { display: block; height: 6px; background: #27304F; }
+#jfin .causa .barra i { display: block; height: 100%; background: #FF8A3D; }
+#jfin .causa .pts { text-align: right; color: #FF6B7D; }
+@media (max-width: 480px) {
+    #jfin .causa { grid-template-columns: 1fr 44px; }
+    #jfin .causa .barra { grid-column: 1 / -1; grid-row: 2; }
+    #jfin .misiones .fila { grid-template-columns: 1fr; }
+    #jfin .misiones .fila button, #jfin .misiones .fila em { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+@media (max-width: 480px) { #jefe .jmision + .jmision { display: none; } }
+@media (max-height: 520px) { #jefe .jmisiones { display: none; } }

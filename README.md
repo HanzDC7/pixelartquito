@@ -32,6 +32,8 @@ Bajo el cursor se leen siempre las coordenadas y la altitud reales de ese punto.
 
 ## El juego: Jefe de línea
 
+Al empezar una partida se elige la dificultad: **Tranquilo** (metas de ánimo 6 puntos más bajas y $12.000 en caja), **Normal** ($8.000) o **Exigente** (metas 4 puntos más altas, $5.000 y premios un 25% mayores).
+
 **Jugar** hace un zoom de unos dos segundos hacia la estación más cercana a la vista actual y abre su interior con el reloj en marcha (la primera vez que juegas cada día de la semana, con la guía del Puesto Central y el reloj detenido hasta que termine). Puedes saltarlo con **Saltar animación**, `Esc`, `Enter` o `Espacio`; si tienes movimiento reducido activado, entras directamente. Si dejaste un turno a medias, **Jugar** te devuelve a él. **Partidas** (o `index.html#juego`) abre las tres partidas guardadas, la semana con su tienda y la trayectoria (logros y récords).
 
 Diriges el Metro de Quito durante la semana de Fiestas, del lunes 30 de noviembre al domingo 6 de diciembre. A velocidad normal cada día dura unos siete minutos, y la semana completa, alrededor de una hora. Después empieza el turno sin fin.
@@ -47,16 +49,30 @@ La primera vez que juegas un día, el Puesto Central te presenta en pocos pasos 
 | Miércoles · Trenes en el taller | Dos trenes menos y averías | **Los trenes de refuerzo** y la flota, tren por tren |
 | Jueves · Noche de partido | Veinte mil personas salen del Atahualpa | **Las decisiones:** el reloj se detiene y eliges |
 | Viernes · Granizada | El agua cierra siete estaciones del norte | **Los cierres:** estaciones cerradas y trenes que dan la vuelta antes |
-| Sábado · Víspera de fiestas | Abre a las 07:00, poca gente de día y serenata de noche | **El fin de semana:** hay que cuidar la caja |
+| Sábado · Víspera de fiestas | Abre a las 07:00, poca gente de día y serenata de noche | **El horario de fin de semana:** otras franjas, un horario aparte y la sugerencia del pronóstico. Hay que cuidar la caja |
 | Domingo · Día de Quito | Feriado, desfile, aguacero y concierto | Todo junto |
 
 Cada día tiene una meta de ánimo y un reto con premio. Con lo que sobra en caja se compra en la **tienda**, que se va abriendo: campaña de tarjeta y capacitación de cajeros desde el martes; personal de andén, mantenimiento y turno de noche en el taller desde el miércoles; pantallas desde el jueves; bombas de achique desde el viernes; jefes de estación (que manejan solos las ventanillas) desde el sábado.
+
+### Misiones
+
+Desde el martes, el tablero ofrece encargos de varios días que piden quienes viven de la línea: el directorio, el Municipio, la Defensoría del Pueblo, los barrios del sur, los vecinos del Centro Histórico, la Universidad Central, la prensa. Son trece: tres días seguidos con poca espera, dos días con el sur contento, 600.000 viajes en tres días, un día sin que nadie se vaya de la fila, dos días redondos, tres días sin escándalos por decisiones… Se llevan dos a la vez, tienen plazo en días jugados y pagan un premio. Arriba, durante el día, se ve cómo va cada una.
+
+### Lo que queda para mañana
+
+Algunas decisiones no terminan ese día. Si no respondes a un video viral, al día siguiente tiene un millón de vistas; si le niegas el bono a los cajeros, amanecen «a reglamento» y hay que negociar; si dejas a los vendedores «por hoy», vuelven el doble; una escalera que se deja «para la noche» se traba en la hora pico siguiente; un tren sin ventilación que sigue rodando se recalienta; un grafiti que se deja salir trae imitadores (y la opción de encargar un mural a artistas del sur). Y si adoptas al perro del andén, Durmiente se queda como mascota de la estación para siempre. El tablero del día siguiente dice qué dejó el anterior.
+
+### El informe: por qué salió así
+
+Al final de cada día, el ánimo se reparte entre lo que le restó puntos: esperar en el andén, la fila de la boletería, ver pasar trenes llenos, viajar apretados, las estaciones cerradas, las decisiones, lo que pasó en la ciudad. Sumadas, las barras dan exactamente lo que faltó para llegar a 100. Debajo, las tres causas que más pesaron, con la estación, las horas y lo que se podría haber hecho («La espera en el andén en El Labrador, entre las 17:00 y las 19:00, te costó 3,2 puntos. Faltaron trenes en el «Pico de la tarde» (ibas cada 8 min)…»). Si una decisión costó ánimo, se dice cuál y qué opción.
 
 ### El turno sin fin
 
 Al terminar la semana se abre el turno sin fin, que sigue el calendario de verdad. Empieza el lunes 7 de diciembre de 2026 (feriado: el descanso de la Fundación se traslada porque el 6 cae en domingo) y avanza de fecha en fecha, saltando unos días cada vez pero sin saltarse nunca una fecha señalada: Nochebuena, Navidad, fin de año, Año Nuevo, la víspera y el lunes de carnaval, San Valentín, el Viernes Santo con su procesión, el Día del Trabajo, la Quito 15K, el Primer Grito, el regreso a clases, Difuntos, el viernes negro y, un año después, otra vez las Fiestas de Quito.
 
-Cada fecha trae la gente que de verdad mueve: el tablero dice si ese día sube o baja y cita la cifra del Metro de la que sale (el 25 de diciembre de 2024 hubo 96.365 viajes, menos de la mitad de un día normal; la víspera de carnaval de 2026, 234.082, el máximo del mes). En los días flojos el problema es la caja; en los de alza, los andenes. Encima de eso, cada día hay un 3% más de gente que el anterior, una meta más alta y más imprevistos: aguaceros, granizadas con estaciones cerradas, eventos, paros de buses, averías y decisiones.
+Cada fecha trae la gente que de verdad mueve: el tablero dice si ese día sube o baja y cita la cifra del Metro de la que sale (el 25 de diciembre de 2024 hubo 96.365 viajes, menos de la mitad de un día normal; la víspera de carnaval de 2026, 234.082, el máximo del mes). En los días flojos el problema es la caja; en los de alza, los andenes.
+
+La línea crece como crece en la realidad: despacio. Cerca de un 8% el primer año y un 14% al segundo, acercándose a un 22% más (unos 250.000 viajes en un día laborable, cerca del récord de 274.000), cuando en las horas pico ya no cabe mucha más gente. En julio y agosto, con las vacaciones escolares de la Sierra, los días laborables se aflojan; de febrero a mayo y en octubre y noviembre llueve casi todas las tardes, y de junio a septiembre casi nunca. Lo que se pone difícil con los días es todo lo demás: la meta sube, los trenes envejecen y se averían más, los sueldos y la energía suben con los años mientras el pasaje sigue en 45 centavos, y pasan más cosas a la vez (aguaceros, granizadas con estaciones cerradas, eventos, paros de buses, un trole dañado en la Maldonado, cortes de luz programados, plantones en la Universidad Central y decisiones). Una fecha que trae lo suyo, como los años viejos o la procesión, no suma además un concierto al azar.
 
 El turno dura hasta que un día termine sin estrellas o deje la caja en rojo. Queda el récord de días aguantados, y las mejoras se conservan para el siguiente intento. Ahí la tienda vende trenes nuevos, publicidad y paneles solares, cada nivel más caro que el anterior.
 
@@ -66,13 +82,13 @@ Lo que sobra de cada día va a la caja, y de ahí sale la tienda. Si el miércol
 
 ### Logros
 
-**Trayectoria** reúne 18 logros y los récords, que valen para todas las partidas: el día de más viajes, el mejor ánimo y los días aguantados en el turno sin fin.
+**Trayectoria** reúne 22 logros y los récords, que valen para todas las partidas: el día de más viajes, el mejor ánimo y los días aguantados en el turno sin fin.
 
 ### Los controles
 
 | Qué decides | Cómo |
 |---|---|
-| Cada cuánto sale un tren | **Horario**: un intervalo para cada franja del día. Menos intervalo es menos espera, pero más trenes rodando y más gasto |
+| Cada cuánto sale un tren | **Horario**: un intervalo para cada franja del día. Menos intervalo es menos espera, pero más trenes rodando y más gasto. Sábados, domingos y feriados tienen sus propias franjas («Tarde de paseo», «Vuelta a casa»…) y su propio horario, que se guarda aparte. Desde el sábado, **Sugerir horario** arma uno con el pronóstico del día |
 | Las boleterías (desde el martes) | **Boleterías** muestra las 15 estaciones; también en la ficha de cada estación o tocando las ventanillas en el dibujo |
 | Refuerzos (desde el miércoles) | **Tren extra** manda un tren vacío desde una cabecera, si hay alguno guardado. **Trenes** muestra la flota; cada tren se puede ver por dentro |
 | Lo que te consulte el Puesto Central (desde el jueves) | El reloj se detiene y eliges una opción; cada una cuesta plata, tiempo o ánimo |
@@ -190,6 +206,12 @@ python3 tools/playtest.py --browser "/Applications/Google Chrome.app/Contents/Ma
 ```
 
 También puedes omitir `--browser` si instalaste Chromium con `python3 -m playwright install chromium`. Las pruebas usan un perfil de navegador aislado y guardan evidencias en `docs/playtest/`.
+
+La simulación y la campaña tienen además sus pruebas sin navegador, que corren en unos segundos con Node: que un turno rehecho con su bitácora salga idéntico, que el «por qué» del informe sume lo que faltó, que las consecuencias de un día lleguen bien al siguiente, las misiones, el horario sugerido, el crecimiento del turno sin fin, y el balance de la semana con tres jugadores de mentira (uno que solo hace lo que pide la guía, uno normal y uno experto):
+
+```sh
+node tools/prueba-simulacion.cjs
+```
 
 `tools/playtest.py` prueba todas las herramientas a la vez, así que arranca en el miércoles con las guías ya vistas. El recorrido de la semana entera (las guías de cada día, la tienda que se abre, el turno guardado a medias, la caja en rojo, la granizada, el final, el turno sin fin, los logros y la partida perdida) está aparte y no necesita servidor:
 
