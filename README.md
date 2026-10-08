@@ -32,7 +32,7 @@ Bajo el cursor se leen siempre las coordenadas y la altitud reales de ese punto.
 
 ## El juego: Jefe de línea
 
-**Jugar** hace un zoom de unos dos segundos hacia la estación más cercana a la vista actual y abre su interior con el reloj en marcha (la primera vez que juegas cada día de la semana, con la guía del Puesto Central y el reloj detenido hasta que termine). Puedes saltarlo con **Saltar animación**, `Esc`, `Enter` o `Espacio`; si tienes movimiento reducido activado, entras directamente. **Partidas** (o `index.html#juego`) abre las tres partidas guardadas, la semana con su tienda y la inducción.
+**Jugar** hace un zoom de unos dos segundos hacia la estación más cercana a la vista actual y abre su interior con el reloj en marcha (la primera vez que juegas cada día de la semana, con la guía del Puesto Central y el reloj detenido hasta que termine). Puedes saltarlo con **Saltar animación**, `Esc`, `Enter` o `Espacio`; si tienes movimiento reducido activado, entras directamente. Si dejaste un turno a medias, **Jugar** te devuelve a él. **Partidas** (o `index.html#juego`) abre las tres partidas guardadas, la semana con su tienda y la trayectoria (logros y récords).
 
 Diriges el Metro de Quito durante la semana de Fiestas, del lunes 30 de noviembre al domingo 6 de diciembre. A velocidad normal cada día dura unos siete minutos, y la semana completa, alrededor de una hora. Después empieza el turno sin fin.
 
@@ -54,7 +54,19 @@ Cada día tiene una meta de ánimo y un reto con premio. Con lo que sobra en caj
 
 ### El turno sin fin
 
-Al terminar la semana se abre el turno sin fin: días armados al azar (aguaceros, granizadas con estaciones cerradas, eventos, paros de buses, averías, decisiones), cada uno con más gente, una meta más alta y más cosas pasando a la vez. Dura hasta que un día termine sin estrellas; queda el récord de días aguantados, y la caja y las mejoras se conservan para el siguiente intento. Ahí la tienda vende trenes nuevos, cada uno más caro que el anterior.
+Al terminar la semana se abre el turno sin fin, que sigue el calendario de verdad. Empieza el lunes 7 de diciembre de 2026 (feriado: el descanso de la Fundación se traslada porque el 6 cae en domingo) y avanza de fecha en fecha, saltando unos días cada vez pero sin saltarse nunca una fecha señalada: Nochebuena, Navidad, fin de año, Año Nuevo, la víspera y el lunes de carnaval, San Valentín, el Viernes Santo con su procesión, el Día del Trabajo, la Quito 15K, el Primer Grito, el regreso a clases, Difuntos, el viernes negro y, un año después, otra vez las Fiestas de Quito.
+
+Cada fecha trae la gente que de verdad mueve: el tablero dice si ese día sube o baja y cita la cifra del Metro de la que sale (el 25 de diciembre de 2024 hubo 96.365 viajes, menos de la mitad de un día normal; la víspera de carnaval de 2026, 234.082, el máximo del mes). En los días flojos el problema es la caja; en los de alza, los andenes. Encima de eso, cada día hay un 3% más de gente que el anterior, una meta más alta y más imprevistos: aguaceros, granizadas con estaciones cerradas, eventos, paros de buses, averías y decisiones.
+
+El turno dura hasta que un día termine sin estrellas o deje la caja en rojo. Queda el récord de días aguantados, y las mejoras se conservan para el siguiente intento. Ahí la tienda vende trenes nuevos, publicidad y paneles solares, cada nivel más caro que el anterior.
+
+### La caja
+
+Lo que sobra de cada día va a la caja, y de ahí sale la tienda. Si el miércoles termina con la caja en rojo, llama el directorio con las cuentas de los tres días y te dice dónde recortar: qué parte se llevaron los trenes, cuánto pagaste por ventanillas abiertas sin fila, cuánto costaron las decisiones. En cualquier momento, **Cuentas** muestra lo mismo. Si la semana termina en rojo, pierdes el cargo y la partida; como al repetir un día cuenta su mejor resultado, antes de cerrar el domingo todavía se puede arreglar.
+
+### Logros
+
+**Trayectoria** reúne 18 logros y los récords, que valen para todas las partidas: el día de más viajes, el mejor ánimo y los días aguantados en el turno sin fin.
 
 ### Los controles
 
@@ -69,13 +81,15 @@ Al terminar la semana se abre el turno sin fin: días armados al azar (aguaceros
 
 Los interiores tienen materiales y colores inspirados en [fotografías de Quitumbe y San Francisco](docs/referencias-metro.md), adaptados al corte lateral en pixel art.
 
-La gente califica tres cosas: la fila para pagar, la espera en el andén y qué tan apretada viaja. De ahí sale el **ánimo**, de 0 a 100. Cada día tiene una meta: diez puntos por debajo dan una estrella y abren el día siguiente; llegar a ella da dos; superarla por diez sin dejar la caja en rojo, tres. Al final de la semana, las estrellas dan el rango. El progreso se guarda en el navegador al cerrar un día y al comprar mejoras; el turno en curso no se recupera al recargar.
+La gente califica tres cosas: la fila para pagar, la espera en el andén y qué tan apretada viaja. De ahí sale el **ánimo**, de 0 a 100. Cada día tiene una meta: diez puntos por debajo dan una estrella y abren el día siguiente; llegar a ella da dos; superarla por diez sin dejar la caja en rojo, tres. Al final de la semana, las estrellas dan el rango. Todo se guarda solo en el navegador, también a mitad de un turno: si cierras la página o el teléfono descarta la pestaña, al volver sigues en la misma hora, con los mismos trenes y la misma gente.
 
 La tira de abajo es la línea estirada, con las 15 estaciones a su distancia real (en un teléfono, repartidas parejo): las barras claras son la gente esperando (hacia arriba, al norte; hacia abajo, al sur), la barrita amarilla es la fila de la boletería y el color de cada estación es su ánimo. Una equis roja es una estación cerrada.
 
 En el teléfono se juega de pie o acostado: el panel se compacta, las guías y las hojas se apilan sin taparse y los botones crecen para el dedo.
 
-**De dónde salen los números.** Son reales la tarifa de 45 centavos, las formas de pago (tarjeta, ventanilla en efectivo y máquinas que reciben efectivo justo o tarjeta bancaria), los 18 trenes de 1.230 pasajeros, los 34 minutos de punta a punta, el horario de 05:30 a 23:00 (sábados de 07:00 a 23:00, domingos y feriados de 07:00 a 22:00), la frecuencia de referencia (5 minutos en hora pico y 8 en valle), los cerca de 205.000 viajes de un día laborable y el uso de las estaciones más y menos concurridas (Quitumbe, El Labrador, Iñaquito, San Francisco y El Recreo; La Pradera, Jipijapa y Cardenal de la Torre). Son estimados el uso de las otras siete estaciones, el reparto por horas, cuánta gente paga con tarjeta y todos los costos, que están ajustados para que el juego tenga tensión y no para llevar la contabilidad de verdad. La granizada del viernes está calcada de la del 7 de octubre de 2026, cuando el Metro cerró siete estaciones, circuló solo entre Quitumbe y La Alameda y dejó La Pradera cerrada al reabrir; la inundación de El Labrador del domingo, de la del 4 de octubre; y el cierre a la 01:30 del sábado, del de la víspera del 6 de diciembre de 2025. Las decisiones, los eventos y las fechas de la semana son inventados.
+**De dónde salen los números.** Son reales la tarifa de 45 centavos, las formas de pago (tarjeta, ventanilla en efectivo y máquinas que reciben efectivo justo o tarjeta bancaria), los 18 trenes de 1.230 pasajeros, los 34 minutos de punta a punta, el horario de 05:30 a 23:00 (sábados de 07:00 a 23:00, domingos y feriados de 07:00 a 22:00), la frecuencia de referencia (5 minutos en hora pico y 8 en valle), los cerca de 205.000 viajes de un día laborable y el uso de las estaciones más y menos concurridas (Quitumbe, El Labrador, Iñaquito, San Francisco y El Recreo; La Pradera, Jipijapa y Cardenal de la Torre). Son estimados el uso de las otras siete estaciones, el reparto por horas, cuánta gente paga con tarjeta y todos los costos, que están ajustados para que el juego tenga tensión y no para llevar la contabilidad de verdad. La granizada del viernes está calcada de la del 7 de octubre de 2026, cuando el Metro cerró siete estaciones, circuló solo entre Quitumbe y La Alameda y dejó La Pradera cerrada al reabrir; la inundación de El Labrador del domingo, de la del 4 de octubre; y el cierre a la 01:30 del sábado, del de la víspera del 6 de diciembre de 2025. Las decisiones y los eventos son inventados.
+
+**El calendario.** Los feriados salen de la ley de feriados, con sus traslados (lo que cae en martes pasa al lunes; en miércoles o jueves, al viernes; en sábado, al viernes; en domingo, al lunes), y el carnaval y el Viernes Santo, de la fecha de Pascua. Cuánta gente se mueve cada día sale de los viajes diarios que publica el Metro en su boletín estadístico; cada fecha lleva anotada la cifra, y las que no la tienen dicen que son estimadas. Un feriado decretado a última hora no está. La simulación avanza en pasos fijos y es exacta: el mismo día con las mismas órdenes sale idéntico, y así es como se recupera un turno a medias.
 
 ## Las escalas
 
@@ -114,10 +128,14 @@ Las fichas de los lugares son textos de divulgación. Conviene verificar fechas 
 | `js/fichas.js` | La historia de cada lugar y el pasaporte |
 | `js/sonido.js` | El sonido, generado con WebAudio |
 | `js/metro-sim.js` | Jefe de línea: la simulación de un día (trenes, pasajeros, caja), sin pantalla |
+| `js/metro-calendario.js` | Jefe de línea: el calendario real (feriados con su traslado, carnaval y Semana Santa, fechas de Quito) y cuánta gente se mueve cada día según las cifras del Metro |
 | `js/metro-campana.js` | Jefe de línea: los siete días, sus decisiones, la tienda y el generador de días del turno sin fin |
 | `js/metro-dentro.js` | Jefe de línea: el dibujo de una estación por dentro |
 | `js/metro-tren.js` | Jefe de línea: el dibujo de un tren por dentro |
 | `js/juego.js` | Jefe de línea: la pantalla, los controles, las guías, la tienda y las partidas guardadas |
+| `js/musica.js` | Jefe de línea: la música, que cambia con la hora y el clima, y los anuncios hablados con la voz del navegador |
+| `js/metro-marca.js` | Jefe de línea: la portada y los festejos (estrellas que se encienden, confeti, el relevo en rojo) |
+| `js/metro-ciudad.js` | Jefe de línea: lo que pasa en la ciudad, dibujado sobre el mapa real (la gente que sale de un evento, el tramo sin servicio, el granizo) |
 | `js/datos/base.js` | Relieve, vías principales, áreas grandes, metro, cerros y barrios |
 | `js/datos/b_X_Y.js` | Un archivo por cada bloque de 2 km: calles, edificios y áreas. Se cargan al acercarse |
 
@@ -173,7 +191,7 @@ python3 tools/playtest.py --browser "/Applications/Google Chrome.app/Contents/Ma
 
 También puedes omitir `--browser` si instalaste Chromium con `python3 -m playwright install chromium`. Las pruebas usan un perfil de navegador aislado y guardan evidencias en `docs/playtest/`.
 
-`tools/playtest.py` prueba todas las herramientas a la vez, así que arranca en el miércoles con las guías ya vistas. El recorrido de la semana entera (las guías de cada día, la tienda que se abre, la granizada, el final y el turno sin fin) está aparte y no necesita servidor:
+`tools/playtest.py` prueba todas las herramientas a la vez, así que arranca en el miércoles con las guías ya vistas. El recorrido de la semana entera (las guías de cada día, la tienda que se abre, el turno guardado a medias, la caja en rojo, la granizada, el final, el turno sin fin, los logros y la partida perdida) está aparte y no necesita servidor:
 
 ```sh
 python3 tools/playtest-semana.py                  # escritorio

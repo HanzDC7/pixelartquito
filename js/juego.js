@@ -13,6 +13,10 @@
  * Los trenes se ven dos veces: en el mapa, sobre la línea de verdad, y en la
  * tira de abajo, que es la misma línea estirada.
  *
+ * Todo lo que ordena el jugador pasa por `orden()`, que lo anota en la bitácora
+ * de la simulación y guarda el turno: si la página se cierra a medias, al
+ * volver el día se rehace igual, con las mismas órdenes y hasta el mismo paso.
+ *
  * Los paneles se arman una sola vez al abrirse y después solo se les cambia el
  * texto: si se rehicieran en cada refresco, un botón podría desaparecer entre
  * que se lo aprieta y se lo suelta, y el clic se perdería.
@@ -23,7 +27,7 @@
  *
  * Para probar sin jugar (cuadro fijo):
  *   index.html#shot&juego=1&jdia=4&jplan=real&jt=1000&jsel=8&jpanel=horario
- *   jdia=-1 es la inducción; de 0 a 6, la semana; 7 o más, el turno sin fin (con jsemilla=123 para fijar el azar)
+ *   jdia: de 0 a 6, la semana; 7 o más, el turno sin fin (con jsemilla=123 para fijar el azar)
  *   jtren=3 elige un tren · jdentro=1 lo muestra por dentro · jguia=0 deja a la vista ese paso de la guía del día
  *   jfin=1 corre el día entero · jmenu=titulo|semana|final|ayuda (con jhecho=7 para dar la semana por terminada)
  *   jdec=1 deja a la vista la decisión pendiente
@@ -33,7 +37,7 @@
     const { R, clamp } = Q, S = Q.state, M = Q.mapa, $ = (s) => document.querySelector(s);
     if (!M || !M.metro || typeof JEFE === 'undefined' || typeof CAMPANA === 'undefined') return;
     const N = JEFE.N, params = new URLSearchParams(location.hash.slice(1));
-    const { TUTORIAL, DIAS, MEJORAS, RANGOS } = CAMPANA;
+    const { DIAS, MEJORAS, RANGOS } = CAMPANA;
     // Dónde está cada estación sobre la línea real, en metros. Si el mapa no trae las 15, se reparten parejo.
     const reales = M.metro.est.length === N;
     const largos = reales ? M.metro.est.map((e) => e.s) : Array.from({ length: N }, (_, i) => M.metro.largo * (0.02 + 0.96 * i / (N - 1)));
@@ -53,18 +57,21 @@
     const prueba = params.get('juego') === '1';
     const nueva = () => ({
         dia: 0, estrellas: [], retos: [], dias: [], caja: 8000, maquinas: [2, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 2, 0, 2],
-        tarjeta: 0, cajeros: 0, anden: 0, pantallas: 0, mantenimiento: 0, taller: 0, jefes: 0, bombas: 0, trenes: 0,
-        horario: [8, 8, 8, 8, 8, 8, 8], ventanillas: null, notas: {}, tutorial: false, fin: false, segundos: 0, fecha: 0,
+        tarjeta: 0, cajeros: 0, anden: 0, pantallas: 0, mantenimiento: 0, taller: 0, jefes: 0, bombas: 0, trenes: 0, publicidad: 0, solar: 0,
+        horario: [8, 8, 8, 8, 8, 8, 8], ventanillas: null, notas: {}, fin: false, segundos: 0, fecha: 0,
         guias: [],          // qué días ya se jugaron con su guía
         sinfin: null,       // el turno sin fin: { n: día por jugar, semilla, mejor: récord de días }
+        turno: null,        // el día que quedó a medias: { dia, t, pasos, plan, bitacora }
+        perdida: false,     // la semana cerró con la caja en rojo
+        total: { dias: 0, viajes: 0, km: 0 },      // lo acumulado en todos los días terminados
     });
-    let almacen = { v: 2, actual: 0, partidas: Array(HUECOS).fill(null) }, partida = nueva();
+    let almacen = { v: 2, actual: 0, partidas: Array(HUECOS).fill(null), logros: {}, records: {} }, partida = nueva();
     try {
         const g = JSON.parse(localStorage.getItem(CLAVE) || 'null');
-        if (g && g.v === 2 && Array.isArray(g.partidas)) almacen = g;
+        if (g && g.v === 2 && Array.isArray(g.partidas)) almacen = Object.assign(almacen, g);
         else if (g && Array.isArray(g.maquinas) && g.maquinas.length === N) {
             // Una partida de la primera versión, de cinco días: se conservan la caja, las mejoras y los cuatro primeros días, que son los mismos.
-            const p = Object.assign(nueva(), g); p.estrellas = (g.estrellas || []).slice(0, 4); p.dia = Math.min(g.dia || 0, 4); p.tutorial = p.estrellas.length > 0; p.dias = []; p.retos = [];
+            const p = Object.assign(nueva(), g); p.estrellas = (g.estrellas || []).slice(0, 4); p.dia = Math.min(g.dia || 0, 4); p.dias = []; p.retos = [];
             almacen.partidas[0] = p;
         }
     } catch (e) { /* sin almacenamiento, la partida dura lo que dure la visita */ }
@@ -80,12 +87,13 @@
     let vista = '';                        // '' el mapa · 'est' la estación elegida por dentro · 'tren' el tren elegido por dentro
     let panel = '', panelAct = null, fichaAct = null, decision = null, velAntes = 1;
     const zonas = [], enMapa = [];         // lo que responde al clic dentro de una estación, y dónde quedó cada tren en el mapa
+    let sinCiudad = false, planInicial = null, ahorro = 0;      // la capa de ciudad se apaga si falla · el plan con que arrancó el día · el reloj del guardado
     const activo = (t) => t.estado !== 'cochera' && t.estado !== 'taller' && t.estado !== 'listo';
     const estrellasDe = (animo, saldo, meta) => (animo >= meta + 10 && saldo >= 0 ? 3 : animo >= meta ? 2 : animo >= meta - 10 ? 1 : 0);
-    const disponible = () => (dia < 0 ? 99999 : partida.caja - sim.cuenta.compras);     // lo que hay en caja para comprar ahora
+    const disponible = () => partida.caja - sim.cuenta.compras;     // lo que hay en caja para comprar ahora
     /** Cada día de la semana entrega algo nuevo: las boleterías llegan el martes y los trenes de refuerzo, el miércoles. */
     const DESDE = { boleterias: 1, trenes: 2 };
-    const puede = (que) => dia < 0 || dia >= DESDE[que];
+    const puede = (que) => dia >= DESDE[que];
 
     // ───────────────────────── Pantalla ─────────────────────────
     const ui = {};
@@ -131,7 +139,9 @@
 
     /** Un aviso que se va solo. Si nombra una estación, al tocarlo se la abre. */
     const avisar = (a) => {
-        const d = boton(a.texto, () => { if (a.i >= 0 && sim) elegir(a.i, true); d.remove(); }, 'aviso ' + (a.tipo || 'info'));
+        // Lo que pasa en la ciudad (un cierre, un evento que termina) se mira en el mapa: el aviso lleva hasta ahí.
+        const alMapa = () => { if (vista) verDentro(''); ficha.hidden = true; const f = (Q.ciudad && Q.ciudad.foco && Q.ciudad.foco()) || (reales && a.i >= 0 ? M.metro.est[a.i] : null); if (f) M.irA(f.x, f.y); refrescar(); };
+        const d = boton(a.texto + (a.mapa ? ' Ver en el mapa ▸' : ''), () => { if (sim) { if (a.mapa) alMapa(); else if (a.i >= 0) elegir(a.i, true); } d.remove(); }, 'aviso ' + (a.tipo || 'info'));
         avisos.prepend(d); while (avisos.children.length > (angosta() ? 2 : 3)) avisos.lastChild.remove();
         setTimeout(() => d.remove(), 10000);
         if (a.sonido === 'tren') son('dispatch'); else son('notify', a.tipo);
@@ -147,7 +157,7 @@
             pan.append(cabecera('Horario'), nota);
             const filas = JEFE.FRANJAS.map((f, i) => {
                 const k = () => JEFE.INTERVALOS.indexOf(sim.horario[i]);
-                const poner = (j) => { sim.horario[i] = JEFE.INTERVALOS[clamp(j, 0, JEFE.INTERVALOS.length - 1)]; if (dia >= 0) partida.horario = sim.horario.slice(); pintar(); tutRevisar(); };
+                const poner = (j) => { orden('horario', i, JEFE.INTERVALOS[clamp(j, 0, JEFE.INTERVALOS.length - 1)]); partida.horario = sim.horario.slice(); pintar(); tutRevisar(); };
                 const menos = boton('−', () => poner(k() - 1), 'menos', 'Más seguido'), mas = boton('+', () => poner(k() + 1), 'mas', 'Más espaciado');
                 const cada = el('span', 'cada'), barra = el('i'), cuanto = el('span', 'pro');
                 const fila = con(el('div', 'franja'), el('span', 'nombre', f.n), con(el('span', 'horas'), `${hhmm(f.de * 60)}–${hhmm(f.a * 60)} · `, cuanto), con(el('span', 'prob'), barra), menos, cada, mas);
@@ -176,10 +186,10 @@
             const nota = el('p', 'nota');
             pan.append(cabecera('Boleterías'), nota);
             const filas = sim.est.map((e) => {
-                const poner = (n) => { e.ventanillas = clamp(n, 0, 5); if (dia >= 0) partida.ventanillas = sim.est.map((q) => q.ventanillas); pintar(); tutRevisar(); };
+                const poner = (n) => { orden('ventanillas', e.i, clamp(n, 0, 5)); partida.ventanillas = sim.est.map((q) => q.ventanillas); pintar(); tutRevisar(); };
                 const nombre = boton(e.n, () => elegir(e.i, true), 'nombre'), cola = el('span', 'cola'), v = el('b'), maq = el('span', 'maq');
                 const menos = boton('−', () => poner(e.ventanillas - 1), 'menos', 'Cerrar una ventanilla'), mas = boton('+', () => poner(e.ventanillas + 1), 'mas', 'Abrir una ventanilla');
-                const comprar = boton('+', () => { if (disponible() < JEFE.COSTO.maquina) return; sim.comprarMaquina(e.i); son('purchase'); pintar(); }, 'compra', `Comprar una máquina de boletos: ${plata(JEFE.COSTO.maquina)}`);
+                const comprar = boton('+', () => { if (disponible() < JEFE.COSTO.maquina) return; orden('maquina', e.i); son('purchase'); pintar(); }, 'compra', `Comprar una máquina de boletos: ${plata(JEFE.COSTO.maquina)}`);
                 const fila = con(el('div', 'bol'), nombre, cola, menos, v, mas, maq, comprar);
                 pan.append(fila);
                 return { e, fila, cola, v, maq, menos, mas, comprar };
@@ -252,9 +262,9 @@
         const animo = par(dl, 'Ánimo'), entradas = par(dl, 'Entradas hoy'), idos = par(dl, 'Se fueron sin viajar');
         const norte = sel < N - 1 ? par(dl, 'Andén al norte') : null, sur = sel > 0 ? par(dl, 'Andén al sur') : null, cola = par(dl, 'Fila de la boletería');
         const dentro = boton('', () => verDentro(vista === 'est' ? '' : 'est'), 'dentro', 'Tecla I');
-        const poner = (n) => { e.ventanillas = clamp(n, 0, 5); if (dia >= 0) partida.ventanillas = sim.est.map((q) => q.ventanillas); pintar(); tutRevisar(); };
+        const poner = (n) => { orden('ventanillas', e.i, clamp(n, 0, 5)); partida.ventanillas = sim.est.map((q) => q.ventanillas); pintar(); tutRevisar(); };
         const vm = boton('−', () => poner(e.ventanillas - 1), 'vmenos', 'Cerrar una ventanilla'), vp = boton('+', () => poner(e.ventanillas + 1), 'vmas', 'Abrir una ventanilla'), vb = el('b'), mb = el('b');
-        const comprar = boton(`Comprar otra · ${plata(JEFE.COSTO.maquina)}`, () => { if (disponible() < JEFE.COSTO.maquina) return; sim.comprarMaquina(e.i); son('purchase'); pintar(); });
+        const comprar = boton(`Comprar otra · ${plata(JEFE.COSTO.maquina)}`, () => { if (disponible() < JEFE.COSTO.maquina) return; orden('maquina', e.i); son('purchase'); pintar(); });
         const nota = el('p', 'nota'), mandos = el('div', 'mandos');
         con(mandos,
             con(el('div', 'fila'), el('span', 'nombre', 'Ventanillas abiertas'), vm, vb, vp, el('span', 'nota', `${plata(JEFE.COSTO.ventanillaHora)} la hora cada una · efectivo`)),
@@ -358,7 +368,7 @@
         caja.append(el('p', 'zona', `Puesto Central · ${hhmm(sim.t)}` + (ev.est !== undefined ? ` · ${sim.est[ev.est].n}` : '')), el('h2', '', ev.titulo), el('p', 'texto', ev.texto));
         if (tut.on && PASOS[tut.k] && PASOS[tut.k].decision) caja.append(el('p', 'consejo', PASOS[tut.k].t));
         ev.opciones.forEach((op, k) => {
-            const b = boton('', () => { dec.hidden = true; decision = null; sim.decidir(ev, k); vel = velAntes; son('select'); refrescar(); }, 'opcion');
+            const b = boton('', () => { dec.hidden = true; decision = null; orden('decidir', ev.id, k); vel = velAntes; son('select'); refrescar(); }, 'opcion');
             con(b, el('strong', '', op.t), el('span', '', op.d));
             caja.append(b);
         });
@@ -367,35 +377,10 @@
         refrescar();
     };
 
-    // ───── El tutorial ─────
-    // Hay dos: la inducción (una mañana de práctica con todo a la vez) y las guías de la semana,
-    // que presentan en pocos pasos lo que cada día trae de nuevo.
+    // ───── Las guías ─────
+    // La primera vez que se juega cada día de la semana, el Puesto Central presenta en pocos pasos lo que trae de nuevo.
     const correr = () => { if (!vel && !decision) vel = 1; };
     const franja = (i, que) => { const f = pan.querySelectorAll('.franja')[i]; return f && f.querySelector(que); };
-    const INDUCCION = [
-        { t: 'Aquí Puesto Central. Hoy no se califica: es una mañana corta para que conozcas la línea antes de recibirla. Son 22 kilómetros y 15 estaciones, de Quitumbe, en el sur, a El Labrador, en el norte.', sig: true, pausa: true },
-        { t: 'Abajo está la línea entera, estirada. Cada cuadro es una estación y su color es el ánimo de la gente ahí: verde, bien; amarillo, regular; rojo, mal. Los trenes son las barras que se mueven: por arriba van al norte y por abajo, al sur.', sig: true, pausa: true, tira: true },
-        { t: 'El reloj está detenido. Pulsa ×1 para que el día empiece a correr. Puedes pausar cuando quieras: las órdenes también se dan en pausa.', foco: () => [ui.vel.children[1]], espera: () => vel > 0, pausa: true },
-        { t: 'Son las 05:30 y abre el Metro. Las barras claras que crecen junto a cada estación son la gente que espera: hacia arriba, quienes van al norte; hacia abajo, quienes van al sur. Cada tren que pasa se las lleva.', hasta: 6.25, tira: true },
-        { t: 'Viene el pico de la mañana: medio sur sale a trabajar al norte, y con un tren cada 8 minutos no va a alcanzar. Abre el Horario.', foco: () => [ui.bhor], espera: () => panel === 'horario', pausa: true },
-        { t: 'Cada franja del día tiene su intervalo. Con el botón −, baja el «Pico de la mañana» a un tren cada 5 minutos. Al lado ves cuántos trenes pide ese ritmo: tienes 18.', foco: () => [pan.querySelectorAll('.franja')[1] && pan.querySelectorAll('.franja')[1].querySelector('.menos')], espera: () => sim.horario[1] <= 5, pausa: true, alEntrar: () => { if (panel !== 'horario') abrirPanel('horario'); } },
-        { t: 'Esa es la decisión de fondo. Con menos intervalo la gente espera menos y viaja más cómoda, pero cada tren cuesta por kilómetro. La barra de cada franja es el pronóstico de viajes: en las horas flojas conviene espaciar los trenes.', sig: true, pausa: true },
-        { t: 'Deja correr el reloj y mira cómo empiezan a salir más trenes de las dos cabeceras.', hasta: 7.1, alEntrar: () => { if (angosta()) cerrarPanel(); correr(); } },
-        { t: 'Ahora, las boleterías. La barrita amarilla junto a una estación es la fila para pagar. Toca Quitumbe, la primera estación de la izquierda, en la línea de abajo.', est: 0, espera: () => sel === 0, pausa: true },
-        { t: 'Quien tiene tarjeta pasa directo. El resto paga los 45 centavos en una ventanilla, en efectivo, o en una máquina, con efectivo justo o tarjeta bancaria. Abre una ventanilla más en Quitumbe con el botón +.', foco: () => [ficha.querySelector('.vmas')], espera: () => sim.est[0].ventanillas >= 3, pausa: true, alEntrar: () => { if (sel !== 0) elegir(0, true); } },
-        { t: 'Puedes bajar a mirar. Pulsa «Ver la estación por dentro».', foco: () => [ficha.querySelector('.dentro')], espera: () => vista === 'est', pausa: true, alEntrar: () => { if (sel !== 0) elegir(0, true); } },
-        { t: 'Esto es Quitumbe ahora mismo: arriba, la calle; en medio, el vestíbulo con la fila, las ventanillas, las máquinas y los torniquetes; abajo, los dos andenes. Aquí también puedes tocar una ventanilla para abrirla o cerrarla.', sig: true, alEntrar: correr },
-        { t: 'Vuelve al mapa con el mismo botón.', foco: () => [ficha.querySelector('.dentro')], espera: () => vista === '' },
-        { t: 'Arriba está el ánimo: la nota que pone la gente, de 0 a 100. Baja con las filas, con las esperas largas y con los trenes apretados. En los días de verdad, una raya blanca marca la meta.', foco: () => [ui.barra.parentNode], sig: true, pausa: true },
-        { t: 'Cuando un andén no da más, puedes mandar un tren vacío sin esperar al horario. Pulsa uno de los dos botones de «Tren extra».', foco: () => [ui.sur, ui.nor], espera: () => sim.cuenta.refuerzos > 0 || (!sim.disponibles(0) && !sim.disponibles(1)), pausa: true },
-        { t: 'En «Trenes» está toda la flota: dónde va cada tren y qué tan lleno. Ábrelo y toca cualquiera que esté en marcha.', foco: () => (panel === 'trenes' ? [...pan.querySelectorAll('.tren:not(.quieto)')].slice(0, 1) : [ui.btre]), espera: () => selTren > 0, pausa: true },
-        { t: 'Los trenes también se ven por dentro. Pulsa «Ver el tren por dentro».', foco: () => [ficha.querySelector('.dentro')], espera: () => vista === 'tren', pausa: true, alEntrar: () => { if (!selTren) { const t = sim.trenes.find(activo); if (t) elegirTren(t.id, false); } } },
-        { t: 'Los asientos se llenan primero y después el pasillo. Cuando un tren va apretado, a esa hora hace falta otro. Vuelve al mapa.', foco: () => [ficha.querySelector('.dentro')], espera: () => vista === '', alEntrar: correr },
-        { t: 'De vez en cuando, Central te va a pedir una decisión. Sigue con el reloj corriendo: ya viene una.', hasta: 8.3, alEntrar: () => { cerrarFicha(); cerrarPanel(); correr(); } },
-        { t: 'El reloj se detiene hasta que elijas. No hay respuesta perfecta: cada opción cuesta algo.', decision: true, espera: () => sim.elegidas.musico !== undefined && !decision },
-        { t: '«Hoy» es la caja del día: los pasajes menos lo que cuestan los trenes, las boleterías y las estaciones. Con lo que sobre al final compras mejoras. Para las tres estrellas hace falta mucho ánimo y no cerrar en rojo.', foco: () => [ui.caja.parentNode], sig: true, pausa: true },
-        { t: 'Ya pasó lo peor del pico: buen momento para cerrar las ventanillas que sobran. La inducción termina a las 09:30; con ×4 llegas en un momento.', hasta: 9.6, alEntrar: correr },
-    ];
     const GUIAS = [
         [   // Lunes: lo básico y el horario
             { t: 'Aquí Puesto Central. Hoy recibes la Línea 1: 22 kilómetros y 15 estaciones, de Quitumbe a El Labrador. Te la voy entregando de a poco: hoy solo decides el horario. De las boleterías me encargo yo.', sig: true, pausa: true },
@@ -435,7 +420,7 @@
             { t: 'Día de Quito: feriado, desfile, aguacero, concierto y un tren menos. Hoy no hay nada nuevo que aprender; ya tienes todas las herramientas. Suerte.', sig: true, pausa: true },
         ],
     ];
-    let PASOS = INDUCCION;
+    let PASOS = GUIAS[0];
     const tut = { on: false, k: 0, focos: [] };
     const tutLimpiar = () => { tut.focos.forEach((e) => e.classList.remove('tut-foco')); tut.focos = []; };
     /** En el teléfono la guía va entre el panel de arriba y las hojas: hay que decirle a la hoja de estilos cuánto ocupa. */
@@ -447,8 +432,7 @@
         if (p.sig) pie.append(boton('Siguiente', () => tutIr(tut.k + 1), 'on'));
         else if (p.hasta) pie.append(el('span', 'nota', vel ? 'El reloj corre…' : 'El reloj está en pausa: pulsa ×1.'));
         else pie.append(el('span', 'nota', 'Hazlo para seguir.'));
-        if (dia < 0) pie.append(boton('Saltar la inducción', () => { if (confirm('¿Terminar la inducción ahora?')) { partida.tutorial = true; guardar(); semana(); } }, 'chico'));
-        else pie.append(boton('Saltar la guía', guiaHecha, 'chico'));
+        pie.append(boton('Saltar la guía', guiaHecha, 'chico'));
         tutBox.append(el('p', 'zona', `Puesto Central · ${tut.k + 1} de ${PASOS.length}`), el('p', 'texto', p.t), pie);
         tutBox.hidden = !!(p.decision && decision); medirGuia();
     };
@@ -457,13 +441,13 @@
     /** La guía del día terminó (o se saltó): no vuelve a salir sola, y el reloj sigue. */
     function guiaHecha() {
         tutFin();
-        if (dia >= 0 && dia < DIAS.length && !partida.guias[dia]) { partida.guias[dia] = true; guardar(); }
+        if (dia < DIAS.length && !partida.guias[dia]) { partida.guias[dia] = true; guardar(); }
         correr(); refrescar();
     }
     function tutIr(k) {
         tutLimpiar();
-        if (sim && dia >= 0 && k >= PASOS.length) { guiaHecha(); return; }
-        if (!sim || k >= PASOS.length) { tut.on = false; tutBox.hidden = true; return; }
+        if (sim && k >= PASOS.length) { guiaHecha(); return; }
+        if (!sim) { tut.on = false; tutBox.hidden = true; return; }
         tut.on = true; tut.k = k;
         const p = PASOS[k];
         if (p.pausa) vel = 0;
@@ -516,76 +500,157 @@
     // ───────────────────────── Empezar y terminar un día ─────────────────────────
     /** El turno sin fin de esta partida; si todavía no existe, lo crea con una semilla nueva. */
     const sinFin = () => { if (!partida.sinfin) partida.sinfin = { n: DIAS.length + 1, semilla: Math.floor(Math.random() * 1e9), mejor: 0 }; return partida.sinfin; };
-    /** El escenario del día `i`: −1 es la inducción, de 0 a 6 la semana, y de ahí en adelante el turno sin fin. */
-    const diaDe = (i) => (i < 0 ? TUTORIAL : i >= DIAS.length ? CAMPANA.generar(i + 1, sinFin().semilla) : Object.assign({}, DIAS[i], (DIAS[i].ajuste && DIAS[i].ajuste(partida.notas)) || null));
-    const empezar = (i, estacionInicial = 0) => {
-        dia = i; D = diaDe(i);
-        const plan = i < 0 ? { maquinas: nueva().maquinas, horario: [8, 8, 8, 8, 8, 8, 8], ventanillas: null }
-            : { maquinas: partida.maquinas, tarjeta: partida.tarjeta, cajeros: partida.cajeros, anden: partida.anden, pantallas: partida.pantallas, mantenimiento: partida.mantenimiento, taller: partida.taller, bombas: partida.bombas, trenes: partida.trenes,
-                jefes: partida.jefes || (D.autoBoleteria ? 1 : 0),      // el primer día, las boleterías las lleva el Puesto Central
-                horario: partida.horario, ventanillas: partida.ventanillas };
-        sim = JEFE.crear(largos, plan, D);
-        vel = i < 0 || prueba ? 0 : 1; llueve = 0; fiesta = false; decision = null; avisos.textContent = '';
+    /** El escenario del día `i`: de 0 a 6 la semana, y de ahí en adelante el turno sin fin. */
+    const diaDe = (i) => (i >= DIAS.length ? CAMPANA.generar(i + 1, sinFin().semilla) : Object.assign({}, DIAS[i]));
+    /** El turno se guarda como lo que hace falta para rehacerlo: el plan del arranque, las órdenes y el paso. */
+    function guardarTurno() {
+        if (!sim || sim.terminado || prueba) return;
+        partida.turno = { dia, t: sim.t, pasos: sim.pasos, plan: planInicial, bitacora: sim.bitacora };
+        guardar();
+    }
+    /** Una orden del jugador: se ejecuta, queda en la bitácora y el turno se guarda. */
+    function orden(...a) { const r = sim.orden(...a); guardarTurno(); return r; }
+    /** Pone la pantalla del día: el panel, el clima, la cámara y la estación que se ve al entrar. */
+    const montar = (estacionInicial) => {
+        llueve = 0; fiesta = false; decision = null; avisos.textContent = '';
         cerrarFicha(); cerrarPanel(); tutFin();
         document.body.classList.add('jugando'); hud.hidden = false; fin.hidden = true; dec.hidden = true;
         hud.classList.remove('mas-controles'); ui.mas.textContent = 'Más'; ui.mas.setAttribute('aria-expanded', 'false');
         if (Q.ficha) Q.ficha.cerrar();
         // El nombre del día va aparte de su título: en el teléfono solo cabe el nombre.
-        ui.dia.textContent = ''; ui.dia.append(el('span', '', D.sinfin ? `Día ${D.numero}` : D.n), el('span', 'jtit', (D.sinfin ? ` · ${D.n}` : '') + ` · ${D.t}`));
+        ui.dia.textContent = ''; ui.dia.append(el('span', '', D.sinfin ? `Día ${D.numero}` : D.n), el('span', 'jtit', (D.sinfin ? ` · ${D.n} ${D.fecha}` : '') + ` · ${D.t}`));
         ui.bbol.hidden = !puede('boleterias'); ui.btre.hidden = ui.sur.hidden = ui.nor.hidden = !puede('trenes');
         S.playing = false; S.tour = false; S.metro = true; S.fiestas = false; S.hour = sim.t / 60; M.setWeather('clear'); M.syncButtons();
         M.extra = extra; M.ajustar(); M.limitar();
         if (reales && S.nivel < 2) M.zoom(2 - S.nivel);
-        if (reales) { const c = M.metro.est[i < 0 ? 2 : 7]; M.irA(c.x, c.y); }
-        if (i < 0) { PASOS = INDUCCION; tutIr(0); }
-        else {
-            elegir(estacionInicial, true); verDentro('est'); ficha.hidden = true;
-            // La primera vez que se juega un día de la semana, el Puesto Central presenta lo que trae de nuevo.
-            if (GUIAS[i] && !partida.guias[i] && !prueba) guiar(i);
-            else avisar({ tipo: 'info', texto: puede('boleterias') ? '¡En marcha! Los trenes salen solos. Usa Horario para ajustar su frecuencia y Gestionar estación para atender las filas.' : '¡En marcha! Los trenes salen solos. Usa Horario para ajustar cada cuánto salen.', i: -1 });
-        }
-        refrescar(); son('start');
+        elegir(estacionInicial, true); verDentro('est'); ficha.hidden = true;
     };
+    const empezar = (i, estacionInicial = 0) => {
+        dia = i; D = diaDe(i);
+        const plan = {
+            maquinas: partida.maquinas, tarjeta: partida.tarjeta, cajeros: partida.cajeros, anden: partida.anden, pantallas: partida.pantallas, mantenimiento: partida.mantenimiento,
+            taller: partida.taller, bombas: partida.bombas, trenes: partida.trenes, publicidad: partida.publicidad, solar: partida.solar,
+            jefes: partida.jefes || (D.autoBoleteria ? 1 : 0),      // el primer día, las boleterías las lleva el Puesto Central
+            horario: partida.horario, ventanillas: partida.ventanillas,
+        };
+        planInicial = JSON.parse(JSON.stringify(plan));
+        sim = JEFE.crear(largos, plan, D);
+        vel = prueba ? 0 : 1; ahorro = 0;
+        montar(estacionInicial);
+        // La primera vez que se juega un día de la semana, el Puesto Central presenta lo que trae de nuevo.
+        if (GUIAS[i] && !partida.guias[i] && !prueba) guiar(i);
+        else avisar({ tipo: 'info', texto: puede('boleterias') ? '¡En marcha! Los trenes salen solos. Usa Horario para ajustar su frecuencia y Gestionar estación para atender las filas.' : '¡En marcha! Los trenes salen solos. Usa Horario para ajustar cada cuánto salen.', i: -1 });
+        refrescar(); son('start'); guardarTurno();
+    };
+    /** Vuelve al turno que quedó a medias: rehace el día con las mismas órdenes y hasta el mismo paso. Devuelve si pudo. */
+    const reanudar = (estacionInicial = 0) => {
+        const t = partida.turno; if (!t) return false;
+        try {
+            dia = t.dia; D = diaDe(dia);
+            partida.maquinas = t.plan.maquinas.slice();      // las máquinas compradas hoy vuelven a comprarse al repetir la bitácora
+            planInicial = t.plan;
+            sim = JEFE.restaurar(largos, Object.assign({}, t.plan, { maquinas: partida.maquinas }), D, t.bitacora, t.pasos);
+        } catch (e) {
+            console.error('Jefe de línea: no se pudo recuperar el turno a medias', e);
+            sim = null; partida.turno = null; guardar(); return false;
+        }
+        vel = 0; ahorro = 0;
+        if (dia < DIAS.length) partida.guias[dia] = true;
+        montar(estacionInicial);
+        sim.avisos.length = 0;      // los avisos del rato ya jugado no se repiten
+        avisar({ tipo: 'bien', texto: `Turno recuperado: ${D.n.toLowerCase()}, ${hhmm(sim.t)}. Está en pausa: pulsa Reanudar cuando quieras.`, i: -1 });
+        refrescar(); return true;
+    };
+    /** Descarta el turno a medias sin jugarlo: lo comprado ese día se deshace. */
+    const descartarTurno = () => { if (partida.turno) { partida.maquinas = partida.turno.plan.maquinas.slice(); partida.turno = null; guardar(); } };
     /** Sale del día sin terminarlo. Lo comprado, comprado está. */
-    const dejar = () => { if (sim && dia >= 0 && sim.cuenta.compras) { partida.caja -= sim.cuenta.compras; guardar(); } };
+    const dejar = () => { if (!sim) return; partida.caja -= sim.cuenta.compras; partida.turno = null; guardar(); };
     const apagar = () => {
         tutFin(); verDentro(''); cerrarFicha(); cerrarPanel(); sim = null; decision = null; M.extra = null;
         hud.hidden = true; dec.hidden = true; avisos.textContent = '';
         S.playing = true; S.fiestas = false; M.setWeather('clear'); M.syncButtons(); M.ajustar(); M.limitar();
     };
-    const salir = () => { apagar(); fin.hidden = true; document.body.classList.remove('jugando'); M.ajustar(); M.limitar(); };
+    const salir = () => { guardarTurno(); apagar(); fin.hidden = true; document.body.classList.remove('jugando'); M.ajustar(); M.limitar(); };
+
+    // ───── Logros y récords: valen para todas las partidas ─────
+    const LOGROS = [
+        { id: 'primer', n: 'Primer día', d: 'Termina tu primer día al frente de la línea.' },
+        { id: 'redondo', n: 'Día redondo', d: 'Tres estrellas en un día.' },
+        { id: 'puntual', n: 'Reloj suizo', d: 'Un día con menos de tres minutos de espera media en el andén.' },
+        { id: 'nadie', n: 'Nadie se queda', d: 'Un día en que se vayan sin viajar menos de 100 personas.' },
+        { id: 'granizo', n: 'A prueba de granizo', d: 'Dos estrellas o más en la granizada del viernes.' },
+        { id: 'record', n: 'Día récord', d: 'Más de 230.000 viajes en un solo día.' },
+        { id: 'retos', n: 'Reto tras reto', d: 'Cumple cinco retos de la semana.' },
+        { id: 'semana', n: 'La semana', d: 'Termina la semana de Fiestas de Quito.' },
+        { id: 'azul', n: 'Semana en azul', d: 'Termina la semana sin un solo día en rojo.' },
+        { id: 'leyenda', n: 'Leyenda del Metro', d: 'Termina la semana con 19 estrellas o más.' },
+        { id: 'tienda', n: 'Todo incluido', d: 'Compra todas las mejoras de la semana.' },
+        { id: 'tren', n: 'Flota nueva', d: 'Compra un tren.' },
+        { id: 'sinfin5', n: 'Cinco días más', d: 'Aguanta cinco días en el turno sin fin.' },
+        { id: 'sinfin10', n: 'Diez días más', d: 'Aguanta diez días en el turno sin fin.' },
+        { id: 'sinfin15', n: 'Quince días más', d: 'Aguanta quince días en el turno sin fin.' },
+        { id: 'navidad', n: 'Feliz Navidad', d: 'Llega al 25 de diciembre en el turno sin fin.' },
+        { id: 'anio', n: 'Año nuevo, línea nueva', d: 'Llega al 1 de enero en el turno sin fin.' },
+        { id: 'carnaval', n: 'Carnaval', d: 'Llega al carnaval en el turno sin fin.' },
+    ];
+    /** Da los logros que ya se cumplen y devuelve los que son nuevos. `c` trae lo del día que acaba de terminar, si lo hay. */
+    const revisarLogros = (c = {}) => {
+        const p = partida, hecha = p.dia >= DIAS.length, n = totalEstrellas(p), s = c.s, hito = (c.D && c.D.hito && c.D.hito.n) || '', cumple = {
+            primer: !!s, redondo: c.est === 3, puntual: !!s && s.cuenta.esperaN > 1000 && s.esperaMedia() < 3, nadie: !!s && s.cuenta.idos < 100,
+            granizo: c.dia === 4 && c.est >= 2, record: !!s && s.cuenta.viajes > 230000,
+            retos: p.retos.filter(Boolean).length >= 5, semana: hecha, azul: hecha && p.dias.slice(0, DIAS.length).every((d) => d && d.saldo >= 0), leyenda: hecha && n >= 19,
+            tienda: MEJORAS.filter((mj) => mj.desde < DIAS.length).every((mj) => (p[mj.id] || 0) >= mj.max), tren: (p.trenes || 0) > 0,
+            sinfin5: c.aguantados >= 5, sinfin10: c.aguantados >= 10, sinfin15: c.aguantados >= 15,
+            navidad: hito === 'Navidad', anio: hito === 'Año Nuevo', carnaval: /carnaval/i.test(hito),
+        };
+        const nuevos = LOGROS.filter((l) => cumple[l.id] && !almacen.logros[l.id]);
+        nuevos.forEach((l) => { almacen.logros[l.id] = Date.now(); });
+        if (nuevos.length) guardar();
+        return nuevos;
+    };
 
     const terminar = () => {
-        const c = sim.cuenta, animo = sim.animoDia(), saldo = sim.balance(), s = sim;
+        const c = sim.cuenta, animo = sim.animoDia(), saldo = sim.balance(), s = sim, est = estrellasDe(animo, saldo, D.meta), reto = !!D.reto.ok(s), premio = reto ? D.reto.premio : 0;
         vel = 0; tutFin(); if (vista) verDentro(''); dec.hidden = true;
-        if (dia < 0) { partida.tutorial = true; guardar(); son('result', 3); informeTutorial(s); return; }
+        partida.turno = null;
+        partida.total = partida.total || { dias: 0, viajes: 0, km: 0 };
+        partida.total.dias++; partida.total.viajes += c.viajes; partida.total.km += c.km;
+        const R0 = almacen.records = almacen.records || {};
+        R0.viajes = Math.max(R0.viajes || 0, Math.round(c.viajes)); R0.animo = Math.max(R0.animo || 0, Math.round(animo));
         if (dia >= DIAS.length) {
-            // El turno sin fin no se repite: cada día cuenta una sola vez, y con cero estrellas se acaba.
-            const f = sinFin(), est = estrellasDe(animo, saldo, D.meta), reto = !!D.reto.ok(s), premio = reto ? D.reto.premio : 0;
-            const aguantados = f.n - DIAS.length - 1 + (est > 0 ? 1 : 0), record = aguantados > (f.mejor || 0);
+            // El turno sin fin no se repite: cada día cuenta una sola vez. Se acaba con un día sin estrellas o con la caja en rojo.
+            const f = sinFin();
             partida.caja += saldo + premio;      // el saldo ya trae descontadas las compras
-            f.mejor = Math.max(f.mejor || 0, aguantados);
-            if (est > 0) f.n++; else { f.n = DIAS.length + 1; f.semilla = Math.floor(Math.random() * 1e9); }
-            guardar(); son('result', est);
-            informe(s, { est, animo, saldo, reto, premio, supera: true, sinfin: true, aguantados, record, mejor: f.mejor });
+            const quiebra = partida.caja < 0, sigue = est > 0 && !quiebra, aguantados = f.n - DIAS.length - 1 + (sigue ? 1 : 0), record = aguantados > (f.mejor || 0);
+            f.mejor = Math.max(f.mejor || 0, aguantados); R0.sinfin = Math.max(R0.sinfin || 0, aguantados);
+            if (sigue) f.n++;
+            else { f.n = DIAS.length + 1; f.semilla = Math.floor(Math.random() * 1e9); if (quiebra) partida.caja = 3000; }      // tras una quiebra, el Municipio cubre el hueco y deja un fondo para volver a empezar
+            const logros = revisarLogros({ s, est, dia, D, aguantados });
+            guardar(); son('result', sigue ? est : 0);
+            informe(s, { est, animo, saldo, reto, premio, supera: true, sinfin: true, sigue, quiebra, aguantados, record, mejor: f.mejor, logros });
             return;
         }
-        const est = estrellasDe(animo, saldo, D.meta), reto = !!D.reto.ok(s), antes = partida.dias[dia];
-        const operativo = saldo + c.compras, premio = reto ? D.reto.premio : 0;
+        const antes = partida.dias[dia], operativo = saldo + c.compras;
         // La caja de un día cuenta una sola vez: al repetirlo, vale el mejor resultado. Las compras se pagan siempre.
         const supera = !antes || est > antes.estrellas || (est === antes.estrellas && animo > antes.animo);
         partida.caja -= c.compras;
         if (supera) {
             partida.caja += operativo - (antes ? antes.operativo : 0);
-            partida.dias[dia] = { estrellas: est, animo, operativo, saldo, viajes: c.viajes, km: c.km, idos: c.idos, premio: antes ? antes.premio : 0 };
-            Object.assign(partida.notas, s.notas);
+            partida.dias[dia] = {
+                estrellas: est, animo, operativo, saldo, viajes: c.viajes, km: c.km, idos: c.idos, premio: antes ? antes.premio : 0,
+                // Las cuentas del día, para saber después en qué se fue la plata.
+                cuentas: { ingresos: c.ingresos, trenes: c.trenes, personal: c.personal, fijo: c.fijo, imprevistos: c.imprevistos, compras: c.compras, ociosas: c.ociosas },
+            };
         }
         if (reto && !partida.retos[dia]) { partida.retos[dia] = true; partida.caja += premio; partida.dias[dia].premio = premio; }
         partida.estrellas[dia] = Math.max(partida.estrellas[dia] || 0, est);
         if (est > 0 && partida.dia === dia) partida.dia = Math.min(DIAS.length, dia + 1);
+        // La semana no puede cerrar en rojo: quien la termina debiendo, pierde el cargo.
+        if (partida.dia >= DIAS.length && partida.caja < 0) partida.perdida = true;
+        const logros = revisarLogros({ s, est, dia, D });
         guardar();
-        son('result', est);
-        informe(s, { est, animo, saldo, reto, premio, supera, antes });
+        son('result', partida.perdida ? 0 : est);
+        informe(s, { est, animo, saldo, reto, premio, supera, antes, logros });
     };
 
     // ───────────────────────── Menús ─────────────────────────
@@ -605,27 +670,38 @@
             if (p) {
                 const n = totalEstrellas(p), hecho = p.dia >= DIAS.length;
                 h.append(el('strong', '', `Partida ${k + 1}`),
-                    el('span', '', hecho ? `Semana completa · ${rangoDe(n).n}` + (p.sinfin && p.sinfin.mejor ? ` · sin fin: récord de ${p.sinfin.mejor} ${p.sinfin.mejor === 1 ? 'día' : 'días'}` : '') : p.estrellas.length ? `Va por el ${DIAS[p.dia].n.toLowerCase()}` : p.tutorial ? 'Inducción hecha' : 'Recién empezada'),
+                    el('span', '', p.perdida ? 'Partida perdida: la semana cerró en rojo' : hecho ? `Semana completa · ${rangoDe(n).n}` + (p.sinfin && p.sinfin.mejor ? ` · sin fin: récord de ${p.sinfin.mejor} ${p.sinfin.mejor === 1 ? 'día' : 'días'}` : '') : p.estrellas.length ? `Va por el ${DIAS[p.dia].n.toLowerCase()}` + (p.turno ? `, con el turno a medias (${hhmm(p.turno.t)})` : '') : 'Recién empezada'),
                     el('em', '', `★ ${n} de ${DIAS.length * 3} · caja ${plata(p.caja)}`),
-                    acciones(boton('Continuar', () => { cargar(k); semana(); }, 'on'), boton('Borrar', () => { if (confirm(`¿Borrar la partida ${k + 1}? Se pierden sus estrellas, su caja y sus mejoras.`)) { almacen.partidas[k] = null; if (almacen.actual === k) partida = nueva(); try { if (!prueba) localStorage.setItem(CLAVE, JSON.stringify(almacen)); } catch (e) { /* idem */ } titulo(); } })));
+                    acciones(boton(p.perdida ? 'Ver qué pasó' : 'Continuar', () => { cargar(k); semana(); }, 'on'), boton('Borrar', () => { if (confirm(`¿Borrar la partida ${k + 1}? Se pierden sus estrellas, su caja y sus mejoras.`)) { almacen.partidas[k] = null; if (almacen.actual === k) partida = nueva(); try { if (!prueba) localStorage.setItem(CLAVE, JSON.stringify(almacen)); } catch (e) { /* idem */ } titulo(); } })));
             } else h.append(el('strong', '', `Partida ${k + 1}`), el('span', '', 'Vacía'), acciones(boton('Nueva partida', () => { almacen.actual = k; partida = nueva(); guardar(); semana(); }, 'on')));
             lista.append(h);
         });
         const sonido = boton(S.sound ? 'Sonido: activado' : 'Sonido: apagado', () => { if (Q.sfx && Q.sfx.enable) Q.sfx.enable(!S.sound); setTimeout(() => { sonido.textContent = S.sound ? 'Sonido: activado' : 'Sonido: apagado'; }, 250); });
         modal(el('p', 'zona', 'Metro de Quito · Línea 1'), el('h2', 'grande', 'Jefe de línea'),
-            el('p', 'texto', 'Diriges los 22 kilómetros y las 15 estaciones del Metro durante la semana de Fiestas de Quito: siete días, del lunes 30 de noviembre al domingo 6 de diciembre. Una partida completa dura alrededor de una hora. El progreso se guarda al terminar cada día; si cierras o recargas durante un turno, tendrás que empezarlo de nuevo.'),
-            lista, acciones(boton('Cómo se juega', () => ayuda(titulo)), sonido, boton('Volver al mapa', salir)));
+            el('p', 'texto', 'Diriges los 22 kilómetros y las 15 estaciones del Metro durante la semana de Fiestas de Quito: siete días, del lunes 30 de noviembre al domingo 6 de diciembre, y después, el calendario entero. La semana dura alrededor de una hora. Todo se guarda solo, también a mitad de un turno.'),
+            lista, acciones(boton('Trayectoria', () => trayectoria(titulo), '', 'Logros y récords'), boton('Cómo se juega', () => ayuda(titulo)), sonido, boton('Volver al mapa', salir)));
     };
 
     /** El tablero de la semana: los días, el parte del día elegido y la tienda. Con `i` igual al número de días muestra el turno sin fin. */
     const semana = (i) => {
+        if (partida.perdida) { pantallaPerdida(); return; }
         const completa = partida.dia >= DIAS.length;
         if (i === undefined || i < 0) i = completa && partida.sinfin ? DIAS.length : Math.min(partida.dia, DIAS.length - 1);
         if (i >= DIAS.length && !completa) i = DIAS.length - 1;
         const sf = i >= DIAS.length, f = sf ? sinFin() : null, k = sf ? f.n - 1 : i, Dd = diaDe(k), n = totalEstrellas(partida);
         const dias = (q) => `${q} ${q === 1 ? 'día' : 'días'}`, minuscula = (t) => t.charAt(0).toLowerCase() + t.slice(1);
         const caja = modal(el('p', 'zona', `Partida ${almacen.actual + 1} · ${sf ? 'después de las fiestas' : 'semana de Fiestas de Quito'}`), el('h2', '', sf ? `Turno sin fin · día ${Dd.numero}` : `La semana · ★ ${n} de ${DIAS.length * 3}`));
-        if (sf) caja.append(el('p', 'consejo', 'Días al azar, cada uno con más gente y más cosas pasando a la vez. El turno dura hasta que un día termine sin estrellas.' + (f.mejor ? ` Tu récord: ${dias(f.mejor)}.` : '')));
+        // Un turno a medias: se puede seguir donde quedó o descartarlo.
+        const medio = partida.turno;
+        if (medio) {
+            const Dm = diaDe(medio.dia);
+            caja.append(con(el('div', 'consejo'), el('span', '', `Dejaste a medias el ${Dm.sinfin ? 'día ' + Dm.numero : Dm.n.toLowerCase()}, a las ${hhmm(medio.t)}. `),
+                boton('Seguir ese turno', () => { if (!reanudar()) semana(i); }, 'on'), boton('Descartarlo', () => { if (confirm('¿Descartar el turno a medias? Se pierde lo avanzado de ese día.')) { descartarTurno(); semana(i); } })));
+        }
+        if (partida.caja < 0) {
+            caja.append(con(el('div', 'consejo mal'), el('span', '', sf ? `La caja está en ${plata(partida.caja)}. ` : `La caja está en ${plata(partida.caja)}. Si la semana termina en rojo, pierdes el cargo. `), boton('Ver dónde recortar', () => cuentasSemana(() => semana(i)))));
+        }
+        if (sf) caja.append(el('p', 'consejo', 'El calendario sigue, de fecha en fecha: feriados, vísperas y días corrientes, cada uno con más gente y más cosas pasando a la vez. El turno dura hasta que un día termine sin estrellas o deje la caja en rojo.' + (f.mejor ? ` Tu récord: ${dias(f.mejor)}.` : '')));
         else if (completa) caja.append(el('p', 'consejo', `Terminaste la semana como ${rangoDe(n).n}. Puedes repetir cualquier día para mejorarlo, o seguir en el turno sin fin.`));
         const lista = el('div', 'dias' + (completa ? ' ocho' : ''));
         DIAS.forEach((d, q) => {
@@ -638,10 +714,15 @@
         const parte = el('ul', 'parte'); (Dd.parte || []).forEach((t) => parte.append(el('li', '', t)));
         caja.append(lista, el('h3', '', `${Dd.n} ${Dd.fecha} · ${Dd.t}`), el('p', 'texto', Dd.intro));
         if (Dd.nuevo) caja.append(con(el('p', 'nuevo'), el('strong', '', `Nuevo hoy: ${minuscula(Dd.nuevo.n)}. `), Dd.nuevo.d));
+        // Lo que dice el calendario de esa fecha, con la cifra real del Metro cuando la hay.
+        const cal = typeof CALENDARIO !== 'undefined' ? CALENDARIO : null;
+        if (sf && Dd.hito) caja.append(con(el('p', 'fecha ' + (Dd.hito.sube > 0 ? 'alza' : Dd.hito.sube < 0 ? 'baja' : '')), el('strong', '', `${Dd.hito.sube > 0 ? '▲' : Dd.hito.sube < 0 ? '▼' : '◆'} ${Dd.hito.n}: ${Dd.hito.pct} de gente frente a ${Dd.hito.frente}${Dd.hito.real ? '' : ' (estimado)'}. `), Dd.hito.dato || ''));
+        else if (!sf && cal) { const c = cal.dia(i + 1); if (c.n) caja.append(con(el('p', 'fecha ' + (c.tono || '')), el('strong', '', `En el calendario: ${c.n}. `), c.dato || '')); }
+        if (sf) { const prox = CAMPANA.proximas(CAMPANA.fechaDe(k + 1, f.semilla), 3); if (prox.length) caja.append(el('p', 'nota', 'Lo que viene: ' + prox.map((q) => `${q.dia.toLowerCase()} ${q.fecha}, ${q.n} (${q.pct})`).join(' · ') + '.')); }
         const cumplido = !sf && partida.retos[i];
         caja.append(parte,
             el('p', 'reto' + (cumplido ? ' hecho' : ''), `${cumplido ? '◆ Reto cumplido' : '◇ Reto'}: ${minuscula(Dd.reto.t)}` + (Dd.reto.premio ? ` (premio de ${plata(Dd.reto.premio)}).` : ' (por el honor).')),
-            el('p', 'nota', sf ? `Con un ánimo de ${Dd.meta - 10} o más sigues al día siguiente; por debajo, termina el turno. Las estrellas son las de siempre: ${Dd.meta} para dos y ${Dd.meta + 10} sin cerrar en rojo para tres.`
+            el('p', 'nota', sf ? `Con un ánimo de ${Dd.meta - 10} o más y la caja sin rojo sigues al día siguiente; si no, termina el turno. Las estrellas son las de siempre: ${Dd.meta} para dos y ${Dd.meta + 10} sin cerrar el día en rojo para tres.`
                 : `Ánimo de ${Dd.meta - 10} para una estrella, de ${Dd.meta} para dos y de ${Dd.meta + 10} sin cerrar la caja del día en rojo para tres. Con una estrella se abre el día siguiente.`));
         // La tienda se va abriendo con los días: cada mejora se ofrece desde el suyo.
         const tienda = el('div', 'tienda'), hoy = partida.dia;
@@ -650,19 +731,65 @@
         if (!abiertas.length) tienda.append(el('p', 'nota', 'La tienda abre mañana. Hoy, todo lo que puedes mejorar está en el Horario.'));
         abiertas.forEach((mj) => {
             const nivel = partida[mj.id] || 0, estreno = mj.desde === hoy && !nivel, precio = mj.precio + (mj.sube || 0) * nivel;
-            const b = boton(nivel >= mj.max ? (mj.max > 1 ? 'Completa' : 'Comprada') : plata(precio), () => { if (partida.caja < precio) return; partida.caja -= precio; partida[mj.id] = nivel + 1; guardar(); son('purchase'); semana(i); });
+            const b = boton(nivel >= mj.max ? (mj.max > 1 ? 'Completa' : 'Comprada') : plata(precio), () => { if (partida.caja < precio) return; partida.caja -= precio; partida[mj.id] = nivel + 1; guardar(); son('purchase'); revisarLogros(); semana(i); });
             b.disabled = nivel >= mj.max || partida.caja < precio;
             tienda.append(con(el('div', 'fila' + (nivel >= mj.max ? ' hecha' : '') + (estreno ? ' estreno' : '')), el('span', 'nombre', (estreno ? 'Nuevo · ' : '') + mj.n + (mj.max > 1 ? ` (${nivel}/${mj.max})` : '')), el('span', 'nota', mj.d), b));
         });
         if (despues.length) tienda.append(el('p', 'nota', 'Más adelante: ' + despues.map((mj) => `${minuscula(mj.n)} (${mj.desde < DIAS.length ? 'desde el ' + DIAS[mj.desde].n.toLowerCase() : 'en el turno sin fin'})`).join(', ') + '.'));
         if (hoy >= DESDE.boleterias) tienda.append(el('p', 'nota', `Las máquinas de boletos (${plata(JEFE.COSTO.maquina)}) se compran durante el turno, en Boleterías o dentro de cada estación.`));
         caja.append(tienda);
-        const pie = acciones(boton(sf ? `Empezar el día ${Dd.numero}` : `Empezar el ${Dd.n.toLowerCase()}`, () => empezar(k), 'on'));
+        if (!sf && i === DIAS.length - 1 && partida.caja < 0) caja.append(el('p', 'consejo mal', `Es el último día: para no perder el cargo, hoy tienes que cerrar con al menos ${plata(-partida.caja)} a favor, contando el premio del reto.`));
+        const pie = acciones(boton(sf ? `Empezar el día ${Dd.numero}` : `Empezar el ${Dd.n.toLowerCase()}`, () => { descartarTurno(); empezar(k); }, medio ? '' : 'on'));
         if (!sf && GUIAS[i] && partida.guias[i]) pie.append(boton('Repetir con la guía', () => { partida.guias[i] = false; empezar(i); }, '', 'Vuelve a mostrar la explicación de lo nuevo de este día'));
         if (completa) pie.append(boton('Ver el final', final));
-        pie.append(boton('Inducción', () => empezar(-1), '', 'Una mañana de práctica con todas las herramientas a la vez, sin calificación'), boton('Cómo se juega', () => ayuda(() => semana(i))), boton('Menú principal', titulo));
+        if (partida.dias.some(Boolean)) pie.append(boton('Cuentas', () => cuentasSemana(() => semana(i)), '', 'En qué se va la plata, día por día'));
+        pie.append(boton('Trayectoria', () => trayectoria(() => semana(i)), '', 'Logros y récords'), boton('Cómo se juega', () => ayuda(() => semana(i))), boton('Menú principal', titulo));
         caja.append(pie);
     };
+
+    /** En qué se fue la plata y qué recortar, a partir de las cuentas de los días jugados. */
+    const consejosDeCaja = () => {
+        const jugados = partida.dias.filter((d) => d && d.cuentas), suma = (q) => jugados.reduce((a, d) => a + (d.cuentas[q] || 0), 0), l = [];
+        const ing = suma('ingresos'), tre = suma('trenes'), imp = suma('imprevistos'), com = suma('compras'), oci = suma('ociosas') * JEFE.COSTO.ventanillaHora / 60;
+        if (ing && tre / ing > 0.56) l.push(`Los trenes se llevaron ${plata(tre)}: el ${Math.round(tre / ing * 100)}% de lo que entró por pasajes. En las franjas flojas (madrugada, media mañana, mediodía y noche) alcanza con un tren cada 10 o 12 minutos: guíate por la barra del pronóstico en el Horario.`);
+        if (oci > 600) l.push(`Pagaste unos ${plata(oci)} por ventanillas abiertas sin nadie en la fila. Ciérralas cuando pase el pico` + (partida.dia >= 5 ? ', o compra los jefes de estación, que lo hacen solos.' : '.'));
+        if (imp > 2500) l.push(`Las decisiones te costaron ${plata(imp)}. Las opciones gratis cuestan ánimo o tiempo, no plata: cuando el ánimo va sobrado, convienen.`);
+        if (com > 5000) l.push(`Compraste máquinas de boletos por ${plata(com)}. Sirven para siempre, pero se pagan de golpe: convienen donde hay fila todos los días (Quitumbe, El Recreo, San Francisco, Iñaquito, El Labrador).`);
+        if (!l.length) l.push('No hay un gasto fuera de lugar: lo que falta es ingreso. Cada persona que se va de la fila o del andén son 45 centavos menos: mira «se fueron sin viajar» en el informe de cada día.');
+        return l;
+    };
+    /** Las cuentas de la semana, día por día. Con `auditoria`, es el directorio el que llama porque la caja está en rojo a media semana. */
+    function cuentasSemana(volver, auditoria = false) {
+        const t = el('table', 'cuentas');
+        t.append(con(el('tr', 'cab'), el('td', '', 'Día'), el('td', '', 'Entró'), el('td', '', 'Salió'), el('td', '', 'Saldo')));
+        partida.dias.forEach((d, k) => { if (!d || !d.cuentas || k >= DIAS.length) return; const q = d.cuentas, sale = q.trenes + q.personal + q.fijo + q.imprevistos + q.compras; t.append(con(el('tr'), el('td', '', DIAS[k].n), el('td', '', plata(q.ingresos)), el('td', '', plata(-sale)), el('td', q.ingresos - sale < 0 ? 'rojo' : '', plata(q.ingresos - sale)))); });
+        t.append(con(el('tr', 'total'), el('td', '', 'En caja, con premios y compras de tienda'), el('td'), el('td'), el('td', partida.caja < 0 ? 'rojo' : '', plata(partida.caja))));
+        const caja = modal(el('p', 'zona', auditoria ? 'Miércoles en la noche · llama el directorio' : `Partida ${almacen.actual + 1}`), el('h2', '', auditoria ? 'Media semana en rojo' : 'Las cuentas de la semana'));
+        if (auditoria) caja.append(el('p', 'texto', `Van tres días y la caja está en ${plata(partida.caja)}. El directorio no pide milagros: pide que el domingo, al cierre, la semana no deba nada. Si termina en rojo, nombran a otro jefe de línea.`));
+        caja.append(t, el('h3', '', partida.caja < 0 ? 'Dónde recortar' : 'En qué se va la plata'));
+        consejosDeCaja().forEach((x) => caja.append(el('p', 'consejo', x)));
+        if (!auditoria && partida.dia < DIAS.length) caja.append(el('p', 'nota', 'Repetir un día y hacerlo mejor también mejora la caja: cuenta el mejor resultado de cada uno. Si la semana termina en rojo, pierdes el cargo.'));
+        caja.append(acciones(boton(auditoria ? 'Entendido: al jueves →' : 'Volver', volver, 'on')));
+    }
+    /** La semana cerró en rojo: se pierde el cargo y, con él, la partida. */
+    function pantallaPerdida() {
+        const caja = modal(el('p', 'zona', 'Domingo 6 de diciembre · cierre de la semana'), el('h2', 'grande', 'Relevado del cargo'),
+            el('p', 'texto', `La semana de Fiestas cerró con la caja en ${plata(partida.caja)}. La gente llegó, pero el Metro no puede gastar más de lo que entra, y el directorio nombró a otra persona para la jefatura de la línea.`),
+            el('h3', '', 'En qué se fue la plata'));
+        caja.classList.add('perdida');
+        consejosDeCaja().forEach((x) => caja.append(el('p', 'consejo', x)));
+        caja.append(el('p', 'nota', `Terminaste con ${totalEstrellas(partida)} de ${DIAS.length * 3} estrellas. Esta partida ya no sigue; los logros que ganaste se conservan.`),
+            acciones(boton('Empezar una partida nueva', () => { partida = nueva(); guardar(); semana(); }, 'on'), boton('Trayectoria', () => trayectoria(pantallaPerdida)), boton('Menú principal', titulo)));
+    }
+    /** Los logros y los récords, que valen para todas las partidas. */
+    function trayectoria(volver) {
+        const R0 = almacen.records || {}, lista = el('div', 'logros'), tengo = LOGROS.filter((l) => almacen.logros[l.id]).length, dl = el('dl', 'datos');
+        LOGROS.forEach((l) => lista.append(con(el('div', 'logro' + (almacen.logros[l.id] ? ' hecho' : '')), el('strong', '', (almacen.logros[l.id] ? '✦ ' : '· ') + l.n), el('span', '', l.d))));
+        [['Más viajes en un día', R0.viajes ? miles(R0.viajes) : '—'], ['Mejor ánimo de un día', R0.animo ? String(R0.animo) : '—'], ['Récord en el turno sin fin', R0.sinfin ? `${R0.sinfin} ${R0.sinfin === 1 ? 'día' : 'días'}` : '—'],
+            ['Esta partida: días terminados', String((partida.total && partida.total.dias) || 0)], ['Esta partida: viajes', miles((partida.total && partida.total.viajes) || 0)], ['Esta partida: tiempo de juego', `${Math.round((partida.segundos || 0) / 60)} min`]]
+            .forEach(([q, val]) => dl.append(con(el('div'), el('dt', '', q), el('dd', '', val))));
+        modal(el('p', 'zona', 'Jefe de línea'), el('h2', '', `Trayectoria · ${tengo} de ${LOGROS.length} logros`), dl, lista, acciones(boton('Volver', volver, 'on')));
+    }
 
     /** El ánimo hora por hora, en barras. */
     const grafico = (s, meta) => {
@@ -694,33 +821,29 @@
         [['Ánimo de la gente', `${Math.round(r.animo)} de 100 (meta ${Dd.meta})`], ['Viajes', `${miles(c.viajes)} de ${miles(c.demanda)}`], ['Espera en el andén', coma(s.esperaMedia()) + ' min'], ['Se fueron sin viajar', miles(c.idos)], ['Kilómetros de tren', miles(c.km)], ['Estación más descontenta', `${peor.n} (${Math.round(peor.animo)})`]]
             .forEach(([q, val]) => dl.append(con(el('div'), el('dt', '', q), el('dd', '', val))));
         const caja = modal(el('p', 'zona', (r.sinfin ? `Turno sin fin · día ${Dd.numero} · ` : '') + `${Dd.n} ${Dd.fecha} · ${Dd.t}`),
-            el('h2', '', r.sinfin && r.est === 0 ? 'Te relevaron del cargo' : r.est >= 3 ? 'Un día redondo' : r.est === 2 ? 'Buen día de servicio' : r.est === 1 ? 'Día salvado, por poco' : 'Un día para olvidar'),
+            el('h2', '', r.sinfin && !r.sigue ? 'Te relevaron del cargo' : r.est >= 3 ? 'Un día redondo' : r.est === 2 ? 'Buen día de servicio' : r.est === 1 ? 'Día salvado, por poco' : 'Un día para olvidar'),
             el('p', 'estrellas', estrellasTxt(r.est)),
             el('p', 'reto' + (r.reto ? ' hecho' : ''), `${r.reto ? '◆ Reto cumplido' : '◇ Reto pendiente'}: ${Dd.reto.t.charAt(0).toLowerCase() + Dd.reto.t.slice(1)} · ${Dd.reto.valor(s)}` + (r.reto && r.premio ? ` · premio de ${plata(r.premio)}` : '')),
             dl, grafico(s, Dd.meta), cuentas(c, r.saldo));
         const dias = (q) => `${q} ${q === 1 ? 'día' : 'días'}`;
-        if (r.sinfin) caja.append(el('p', 'consejo', (r.est === 0 ? `Hacía falta un ánimo de ${Dd.meta - 10} para seguir. Aguantaste ${dias(r.aguantados)} en el turno sin fin` : `Día ${Dd.numero} superado: llevas ${dias(r.aguantados)} en el turno sin fin`) + (r.record ? ', y es tu récord.' : `. Tu récord es de ${dias(r.mejor)}.`) + (r.est === 0 ? ' Conservas la caja y las mejoras para el próximo intento.' : '')));
+        if (r.sinfin) caja.append(el('p', 'consejo' + (r.record ? ' record' : ''), (r.sigue ? `Día ${Dd.numero} superado: llevas ${dias(r.aguantados)} en el turno sin fin` : (r.quiebra ? 'El día dejó la caja en rojo, y sin plata no hay Metro. ' : `Hacía falta un ánimo de ${Dd.meta - 10} para seguir. `) + `Aguantaste ${dias(r.aguantados)} en el turno sin fin`) + (r.record ? ', y es tu récord.' : `. Tu récord es de ${dias(r.mejor)}.`) + (r.sigue ? '' : r.quiebra ? ' El Municipio cubre el hueco y te deja un fondo de $3.000 para el próximo intento; las mejoras se conservan.' : ' Conservas la caja y las mejoras para el próximo intento.')));
         else if (r.est === 0) caja.append(el('p', 'consejo', `Hacía falta un ánimo de ${Dd.meta - 10} para pasar al día siguiente. Hay que repetir el ${Dd.n.toLowerCase()}.`));
         else if (!r.supera) caja.append(el('p', 'nota', `No superaste tu mejor resultado de este día (${estrellasTxt(r.antes.estrellas)}, ánimo ${Math.round(r.antes.animo)}): la caja se queda como estaba.`));
+        (r.logros || []).forEach((l) => caja.append(con(el('p', 'logro'), el('strong', '', `✦ Logro: ${l.n}. `), l.d)));
         consejos.forEach((t) => caja.append(el('p', 'consejo', t)));
         const estrenos = r.sinfin || r.est === 0 ? [] : MEJORAS.filter((mj) => mj.desde === k + 1);
         caja.append(el('p', 'nota', `En caja: ${plata(partida.caja)}.` + (estrenos.length ? ` Nuevo en la tienda: ${estrenos.map((mj) => mj.n).join(', ')}.` : '')));
         const pie = acciones();
-        if (r.sinfin) pie.append(boton(r.est > 0 ? `Día ${Dd.numero + 1} →` : 'Empezar otro turno →', () => semana(DIAS.length), 'on'), boton('La semana', () => semana(DIAS.length - 1)));
+        if (r.sinfin) pie.append(boton(r.sigue ? `Día ${Dd.numero + 1} →` : 'Empezar otro turno →', () => semana(DIAS.length), 'on'), boton('La semana', () => semana(DIAS.length - 1)));
+        else if (partida.perdida) pie.append(boton('Ver el cierre de la semana →', pantallaPerdida, 'on'));
         else {
-            if (r.est > 0 && k + 1 < DIAS.length) pie.append(boton(`${DIAS[k + 1].n}: ${DIAS[k + 1].t} →`, () => semana(k + 1), 'on'));
+            // A media semana, con la caja en rojo, antes del jueves pasa el directorio.
+            if (r.est > 0 && k + 1 < DIAS.length) pie.append(boton(`${DIAS[k + 1].n}: ${DIAS[k + 1].t} →`, () => (k === 2 && partida.caja < 0 ? cuentasSemana(() => semana(k + 1), true) : semana(k + 1)), 'on'));
             else if (r.est > 0) pie.append(boton('Ver el final →', final, 'on'));
             pie.append(boton('Repetir el día', () => empezar(k), r.est === 0 ? 'on' : ''), boton('La semana', () => semana(k)));
         }
         caja.append(pie);
     };
-    const informeTutorial = (s) => {
-        modal(el('p', 'zona', 'Inducción completa'), el('h2', '', 'La línea es tuya'),
-            el('p', 'texto', `En esta mañana de práctica se movieron ${miles(s.cuenta.viajes)} personas y el ánimo terminó en ${Math.round(s.animoDia())}. Desde mañana cuenta.`),
-            con(el('ul', 'parte'), el('li', '', 'Horario: el intervalo de cada franja, según el pronóstico.'), el('li', '', 'Boleterías: ventanillas y máquinas, donde haya fila.'), el('li', '', 'Tren extra: para el andén que ya no da más.'), el('li', '', 'Decisiones: cada opción cuesta algo.'), el('li', '', 'Tres estrellas: mucho ánimo y la caja del día sin rojo.')),
-            acciones(boton('Empezar el lunes →', () => semana(0), 'on'), boton('Repetir la inducción', () => empezar(-1)), boton('Menú principal', titulo)));
-    };
-
     /** El final de la semana: el rango y las cuentas de los siete días. */
     const final = () => {
         partida.fin = true; guardar();
@@ -749,7 +872,8 @@
             ...seccion('Trenes', 'Tienes 18, de 1.230 pasajeros cada uno. «Tren extra» manda uno vacío desde una cabecera cuando un andén no da más. En «Trenes» ves toda la flota, y cada tren y cada estación se pueden mirar por dentro.'),
             ...seccion('Imprevistos', 'Aguaceros, averías, eventos y estaciones que se cierran por el agua. A veces el Puesto Central te pide una decisión: el reloj se detiene y cada opción tiene su costo.'),
             ...seccion('La semana y lo que viene después', 'Cada día entrega algo nuevo: el lunes solo decides el horario; el martes llegan las boleterías; el miércoles, los trenes de refuerzo; el jueves, las decisiones; el viernes, los cierres por lluvia; el sábado, el fin de semana; y el domingo va todo junto. La tienda también se va abriendo. Al terminar la semana empieza el turno sin fin: días al azar, cada vez más cargados, hasta que un día el ánimo no alcance.'),
-            ...seccion('Guardado', 'Se conservan los días terminados y las mejoras compradas entre turnos. El turno en curso no se guarda al cerrar o recargar. Si sales con el botón Salir, las máquinas compradas durante ese turno se conservan y se descuentan de tu caja.'),
+            ...seccion('La caja', 'Lo que sobra de cada día va a la caja, y de ahí sale la tienda. Si a mitad de semana la caja está en rojo, el directorio te dice dónde recortar. Si la semana termina en rojo, pierdes el cargo y la partida. En el turno sin fin, un día que deja la caja en rojo también lo termina.'),
+            ...seccion('Guardado', 'Todo se guarda solo: los días terminados, las compras y también el turno en curso. Si cierras la página a medias, al volver sigues donde estabas. El botón Salir, en cambio, descarta lo avanzado de hoy (las máquinas compradas se conservan y se cobran).'),
             ...seccion('Teclas', 'Espacio: pausa · 1, 2, 3: velocidad · H: horario · B: boleterías · T: trenes · I: ver por dentro · Esc: cerrar. En el teléfono, todo se hace tocando; el mapa se mueve con un dedo y se acerca con dos.'),
             acciones(boton('Entendido', volver, 'on')));
     };
@@ -772,7 +896,7 @@
         paso(dt) {
             if (!sim) return;
             if (sim.terminado) { terminar(); return; }
-            if (vel && !decision) { sim.avanzar(dt * VEL[vel]); if (dia >= 0) partida.segundos += dt; }
+            if (vel && !decision) { sim.avanzar(dt * VEL[vel]); partida.segundos += dt; if ((ahorro += dt) > 5) { ahorro = 0; guardarTurno(); } }
             S.hour = (sim.t / 60) % 24;
             if (sim.lluvia !== llueve) { llueve = sim.lluvia; M.setWeather(llueve ? 'rain' : 'clear'); }
             const deFiesta = !!D.fiestas && sim.t / 60 >= D.fiestas;
@@ -810,12 +934,14 @@
                 if (!activo(t)) continue;
                 const col = colorTren(t);
                 for (let k = 0; k < n; k++) {
-                    const q = enCamino(metro.p, metro.a, clamp(s0 + t.s + (t.dir === 0 ? -1 : 1) * k * sep, 0, metro.largo)), x = X(q[0]), y = Y(q[0], q[1]);
+                    const q = enCamino(metro.p, metro.a, clamp(s0 + sim.ver(t) + (t.dir === 0 ? -1 : 1) * k * sep, 0, metro.largo)), x = X(q[0]), y = Y(q[0], q[1]);
                     if (x < -6 || y < -6 || x > Q.W + 6 || y > Q.H + 6) continue;
                     if (k === 0) { enMapa.push({ t, x, y }); if (t.id === selTren) [[-4, -4], [4, -4], [-4, 4], [4, 4]].forEach(([dx, dy]) => R(v, x + dx * (r > 1 ? 1 : 0.75), y + dy * (r > 1 ? 1 : 0.75), 1, 1, '#FFE500')); }
                     R(v, x - r, y - r, r * 2 + 1, r * 2 + 1, '#1F4FA3'); if (r > 1) R(v, x - r + 1, y - r + 1, r * 2 - 1, r * 2 - 1, col); else R(v, x, y, 1, 1, col);
                 }
             }
+            // Lo que pasa en la ciudad (la gente que sale del estadio, el tramo inundado) lo dibuja js/metro-ciudad.js, si está.
+            if (Q.ciudad && !sinCiudad) { try { Q.ciudad(v, X, Y, m, metro, enCamino); } catch (e) { sinCiudad = true; console.error('Jefe de línea: la capa de ciudad falló y se apagó', e); } }
             if (!reales || m > 8) return;
             sim.est.forEach((e, i) => {
                 const p = metro.est[i], x = X(p.x), y = Y(p.x, p.y); if (x < -10 || y < -10 || x > Q.W + 10 || y > Q.H + 10) return;
@@ -831,6 +957,7 @@
         /** La tira de abajo: la línea estirada, con sus andenes y sus trenes. */
         dibujar(v, W, H) {
             if (!sim) return;
+            if (Q.ciudad && Q.ciudad.encima && !sinCiudad && !vista) { try { Q.ciudad.encima(v); } catch (e) { sinCiudad = true; console.error('Jefe de línea: la capa de ciudad falló y se apagó', e); } }
             const T = tira(W, H), { y0, yc, xe, hb } = T, alto = T.alto;
             v.globalAlpha = 0.93; R(v, 0, y0, W, alto, '#0B1020'); v.globalAlpha = 1; R(v, 0, y0, W, 1, '#2C3A66');
             // Las dos vías. Donde el servicio está cortado, apagadas.
@@ -857,7 +984,7 @@
             });
             for (const t of sim.trenes) {
                 if (!activo(t)) continue;
-                const x = T.px(t.s), norte = t.dir === 0, y = norte ? yc - 2 : yc + 2, ww = T.dos ? 7 : 9, m = ww >> 1;
+                const x = T.px(sim.ver(t)), norte = t.dir === 0, y = norte ? yc - 2 : yc + 2, ww = T.dos ? 7 : 9, m = ww >> 1;
                 if (t.id === selTren) R(v, x - m - 1, y - 2, ww + 2, 5, '#FFE500');
                 R(v, x - m, y - 1, ww, 3, '#1F4FA3'); R(v, x - m + 1, y, ww - 2, 1, colorTren(t)); R(v, norte ? x + m : x - m, y, 1, 1, '#FFFFFF');
             }
@@ -866,7 +993,7 @@
                 const n = sim.trenes.filter((t) => (t.estado === 'cochera' || t.estado === 'listo') && t.cab === cab).length, txt = String(n), w = Q.textW(txt);
                 R(v, cab ? W - 8 : 2, y0 + 4, 6, 3, n ? '#5E72A8' : '#27304F'); Q.text(v, txt, cab ? W - 10 - w : 10, y0 + 3, n ? '#8FA3D9' : '#4A5680');
             }
-            // El tutorial señala dónde mirar.
+            // La guía señala dónde mirar.
             if (tut.on && !decision) {
                 const p = PASOS[tut.k], sube = Math.floor(S.time * 3) % 2;
                 if (p.tira && sube) { R(v, 0, y0, W, 1, '#FFE500'); R(v, 0, H - 1, W, 1, '#FFE500'); R(v, 0, y0, 1, alto, '#FFE500'); R(v, W - 1, y0, 1, alto, '#FFE500'); }
@@ -888,8 +1015,8 @@
             if (vista === 'est') {     // dentro de la estación: las ventanillas se abren y se cierran tocándolas, y la casilla vacía compra una máquina
                 const z = zonas.find((q) => x >= q.x && x < q.x + q.w && y >= q.y && y < q.y + q.h), e = sim.est[sel];
                 if (!puede('boleterias')) return true;
-                if (z && z.tipo === 'ventanilla') { e.ventanillas = z.abierta ? z.k : z.k + 1; if (dia >= 0) partida.ventanillas = sim.est.map((q) => q.ventanillas); son('click'); refrescar(); }
-                else if (z && z.tipo === 'maquina' && disponible() >= JEFE.COSTO.maquina) { sim.comprarMaquina(sel); son('purchase'); refrescar(); }
+                if (z && z.tipo === 'ventanilla') { orden('ventanillas', sel, z.abierta ? z.k : z.k + 1); partida.ventanillas = sim.est.map((q) => q.ventanillas); son('click'); refrescar(); }
+                else if (z && z.tipo === 'maquina' && disponible() >= JEFE.COSTO.maquina) { orden('maquina', sel); son('purchase'); refrescar(); }
                 return true;
             }
             if (vista) return true;
@@ -902,7 +1029,7 @@
         tecla(k, e) {
             if (!sim) return false;
             if (decision || !fin.hidden) { e.preventDefault(); return true; }
-            if (k === ' ') { e.preventDefault(); vel = vel ? 0 : 1; son('click'); refrescar(); return true; }
+            if (k === ' ') { e.preventDefault(); vel = vel ? 0 : 1; if (!vel) guardarTurno(); son('click'); refrescar(); return true; }
             if (k === '1' || k === '2' || k === '3') { vel = +k; son('click'); refrescar(); return true; }
             if (k === 'i' && (sel >= 0 || selTren > 0)) { verDentro(vista ? '' : sel >= 0 ? 'est' : 'tren'); return true; }
             if (k === 'h') { abrirPanel('horario'); return true; }
@@ -915,11 +1042,11 @@
     };
 
     // ───────────────────────── Botones ─────────────────────────
-    [...ui.vel.children].forEach((b, i) => b.addEventListener('click', () => { if (decision) return; vel = i || (vel ? 0 : 1); refrescar(); }));
+    [...ui.vel.children].forEach((b, i) => b.addEventListener('click', () => { if (decision) return; vel = i || (vel ? 0 : 1); if (!vel) guardarTurno(); refrescar(); }));      // al pausar, el turno queda guardado en ese instante
     ui.bhor.addEventListener('click', () => abrirPanel('horario'));
     ui.bbol.addEventListener('click', () => abrirPanel('boleterias'));
     ui.btre.addEventListener('click', () => abrirPanel('trenes'));
-    const refuerzo = (cab) => { if (sim && sim.refuerzo(cab)) avisar({ tipo: 'bien', sonido: 'tren', texto: `Sale un tren vacío de ${sim.est[sim.tramo[cab]].n} hacia el ${cab ? 'sur' : 'norte'}.`, i: -1 }); refrescar(); };
+    const refuerzo = (cab) => { if (sim && orden('refuerzo', cab)) avisar({ tipo: 'bien', sonido: 'tren', texto: `Sale un tren vacío de ${sim.est[sim.tramo[cab]].n} hacia el ${cab ? 'sur' : 'norte'}.`, i: -1 }); refrescar(); };
     ui.sur.addEventListener('click', () => refuerzo(0));
     ui.nor.addEventListener('click', () => refuerzo(1));
     ui.ayuda.addEventListener('click', () => {
@@ -930,11 +1057,11 @@
         fin.append(con(el('div', 'caja'), el('p', 'zona', `${D.n} · en pausa`), el('h2', '', 'Cómo se juega'),
             ...seccion('La meta', D.meta ? `Hoy hace falta un ánimo de ${D.meta} para dos estrellas, y de ${D.meta + 10} sin cerrar la caja en rojo para tres.` : 'Hoy no se califica.'),
             ...seccion('La línea de abajo', 'Cuadros: estaciones, con el color de su ánimo. Barras claras: gente esperando (arriba, al norte; abajo, al sur). Barrita amarilla: la fila de la boletería. Una equis roja: estación cerrada.'),
-            ...seccion('Lo que decides', 'Horario: cada cuánto sale un tren en cada franja.' + (puede('boleterias') ? ' Boleterías: ventanillas y máquinas.' : ' De las boleterías, hoy se encarga el Puesto Central.') + (puede('trenes') ? ' Tren extra: un tren vacío, ya.' : '') + (dia < 0 || dia >= 3 ? ' Y las decisiones que te pida el Puesto Central.' : '')),
+            ...seccion('Lo que decides', 'Horario: cada cuánto sale un tren en cada franja.' + (puede('boleterias') ? ' Boleterías: ventanillas y máquinas.' : ' De las boleterías, hoy se encarga el Puesto Central.') + (puede('trenes') ? ' Tren extra: un tren vacío, ya.' : '') + (dia >= 3 ? ' Y las decisiones que te pida el Puesto Central.' : '')),
             ...seccion('Teclas', 'Espacio: pausa · 1, 2, 3: velocidad · H: horario · B: boleterías · T: trenes · I: ver por dentro · Esc: cerrar.'),
             acciones(boton('Seguir', () => { fin.hidden = true; vel = antes; refrescar(); }, 'on'))));
     });
-    ui.salir.addEventListener('click', () => { if (!sim) return; if (sim.t < sim.abre + 20 || confirm(dia < 0 ? '¿Dejar la inducción?' : '¿Dejar el día a medias? No se guarda lo avanzado de hoy.')) { const era = dia; dejar(); semana(era >= DIAS.length ? DIAS.length : Math.max(0, era)); } });
+    ui.salir.addEventListener('click', () => { if (!sim) return; if (sim.t < sim.abre + 20 || confirm('¿Dejar el día y empezarlo de nuevo otra vez? Se descarta lo avanzado de hoy; si solo quieres parar, cierra la página: el turno queda guardado.')) { const era = dia; dejar(); semana(era >= DIAS.length ? DIAS.length : Math.max(0, era)); } });
     addEventListener('resize', () => { if (sim) refrescar(); });
     const jugar = $('#jugar');
     let entrando = false;
@@ -960,7 +1087,9 @@
                 velo.style.opacity = '0'; saltar.focus();
                 await M.acercarEstacion(estacion, (p) => { velo.style.opacity = String(clamp((p - 0.78) / 0.22)); });
             }
-            empezar(partida.dia >= DIAS.length ? sinFin().n - 1 : partida.dia, estacion);
+            if (partida.perdida) { titulo(); return; }
+            // Si quedó un turno a medias, se vuelve a él; si no, empieza el día que toca.
+            if (!(partida.turno && reanudar(estacion))) empezar(partida.dia >= DIAS.length ? sinFin().n - 1 : partida.dia, estacion);
             if (!reducir) {
                 rotulo.textContent = `Bienvenido a ${M.metro.est[estacion].nombre}`;
                 await velo.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, fill: 'forwards' }).finished;
@@ -974,14 +1103,17 @@
     });
     const partidas = $('#partidas'); if (partidas) partidas.addEventListener('click', titulo);
 
-    Q.juego = { titulo, semana, empezar, salir, get sim() { return sim; }, get partida() { return partida; } };
+    // Para las capas que se enganchan desde fuera (música, ciudad): el día en curso y su simulación, o null en los menús.
+    Q.juego = { titulo, semana, empezar, reanudar, salir, trayectoria, get sim() { return sim; }, get dia() { return sim ? D : null; }, get partida() { return partida; }, get logros() { return almacen.logros; } };
+    addEventListener('visibilitychange', () => { if (document.hidden) guardarTurno(); });
+    addEventListener('pagehide', () => guardarTurno());
 
     // Para probar sin jugar: arranca un día, lo adelanta y lo deja a la vista.
     if (params.get('juego') === '1') {
         const k = params.has('jdia') ? +params.get('jdia') : 0, menu = params.get('jmenu');
         if (params.has('jcaja')) partida.caja = +params.get('jcaja');
         if (params.has('jsemilla')) partida.sinfin = { n: Math.max(DIAS.length + 1, k + 1), semilla: +params.get('jsemilla'), mejor: +params.get('jmejor') || 0 };
-        if (params.has('jhecho')) { const n = +params.get('jhecho'); partida.dia = n; partida.tutorial = true; for (let i = 0; i < n; i++) { partida.estrellas[i] = 2 + (i % 2); partida.retos[i] = i % 2 === 0; partida.dias[i] = { estrellas: partida.estrellas[i], animo: 80 + i, operativo: 3000, saldo: 3000, viajes: 205000, km: 6800, idos: 900, premio: 0 }; } }
+        if (params.has('jhecho')) { const n = +params.get('jhecho'); partida.dia = n; for (let i = 0; i < n; i++) { partida.estrellas[i] = 2 + (i % 2); partida.retos[i] = i % 2 === 0; partida.dias[i] = { estrellas: partida.estrellas[i], animo: 80 + i, operativo: 3000, saldo: 3000, viajes: 205000, km: 6800, idos: 900, premio: 0 }; } }
         if (menu === 'titulo') { if (params.has('jhecho')) almacen.partidas[0] = partida; titulo(); M.repintar(); return; }
         if (menu === 'semana' || menu === '1') { semana(k); M.repintar(); return; }
         if (menu === 'final') { final(); M.repintar(); return; }
@@ -989,8 +1121,7 @@
         if (params.get('jplan') === 'real') partida.horario = [8, 5, 8, 8, 8, 5, 8];
         empezar(k); avisos.textContent = '';
         const hasta = params.get('jfin') === '1' ? 1e9 : +params.get('jt') || 450, deja = params.get('jdec') === '1';
-        if (k < 0) { tutFin(); if (params.has('jtut')) tutIr(+params.get('jtut')); }
-        else if (params.has('jguia') && GUIAS[k]) { PASOS = GUIAS[k]; tutIr(+params.get('jguia')); }
+        if (params.has('jguia') && GUIAS[k]) { PASOS = GUIAS[k]; tutIr(+params.get('jguia')); }
         while (!sim.terminado && sim.t < hasta) { sim.avanzar(Math.min(5, hasta - sim.t)); if (sim.decisiones.length) { if (deja && sim.t >= hasta - 6) break; sim.decidir(sim.decisiones[0], 0); } }
         sim.avisos.splice(0, Math.max(0, sim.avisos.length - 2));
         S.hour = (sim.t / 60) % 24; extra.paso(0);

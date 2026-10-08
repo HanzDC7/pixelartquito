@@ -382,3 +382,25 @@ button.chico { flex: 0 0 auto; }
 }
 @media (max-height: 520px) and (pointer: coarse) { #jefe button, #jefe .jvista select { min-height: 32px; } }
 @media (max-height: 520px) { body.jugando #vista, body.jugando #nivel { display: none; } }
+
+/* ───────────── Jefe de línea: la caja en rojo, el calendario, los logros ───────────── */
+#jfin .consejo.mal { background: rgba(224, 49, 79, .14); border-left-color: #E0314F; }
+#jfin .consejo button { margin: 6px 6px 0 0; }
+#jfin .fecha { margin: 0 0 9px; padding: 7px 9px; background: #0E1630; border-left: 3px solid var(--dim); font: 13px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#jfin .fecha.alza { border-left-color: var(--accent); }
+#jfin .fecha.alza strong { color: #FFC08F; }
+#jfin .fecha.baja { border-left-color: #5FB8E6; }
+#jfin .fecha.baja strong { color: #9DD1E8; }
+#jfin .cuentas .cab td { color: var(--dim); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+#jfin .cuentas td:not(:first-child) { text-align: right; white-space: nowrap; padding-left: 8px; }
+#jfin .caja.perdida { border-color: #E0314F; }
+#jfin .caja.perdida h2 { color: #FF6B7D; }
+#jfin p.logro { margin: 0 0 9px; padding: 7px 9px; background: rgba(255, 229, 0, .12); border: 1px solid var(--gold); border-radius: 3px; font: 13px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#jfin p.logro strong { color: var(--gold); }
+#jfin .logros { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 0 0 12px; }
+#jfin .logros .logro { display: grid; gap: 2px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 3px; opacity: .55; }
+#jfin .logros .logro.hecho { opacity: 1; border-color: var(--gold); background: rgba(255, 229, 0, .07); }
+#jfin .logros .logro strong { font-size: 12px; color: #fff; }
+#jfin .logros .logro.hecho strong { color: var(--gold); }
+#jfin .logros .logro span { font: 11.5px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--dim); }
+@media (max-width: 560px) { #jfin .logros { grid-template-columns: 1fr; } }

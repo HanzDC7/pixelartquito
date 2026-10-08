@@ -113,8 +113,9 @@ const JEFE = (() => {
         const fuera0 = Math.max(0, (dia.trenesFuera || 0) - (plan.taller && dia.trenesFuera ? 1 : 0));      // los que hoy están en el taller
         const flota = FLOTA + (plan.trenes || 0) - fuera0;
         const ACHIQUE = plan.bombas ? 0.5 : 1;                        // con bombas, lo que cierra el agua reabre en la mitad del tiempo
-        const AGUANTE = 2.5 + (plan.pantallas ? 1.2 : 0);             // minutos de andén que nadie reprocha
-        const PACIENCIA = 11 + (plan.pantallas ? 2 : 0);              // y a partir de cuántos empiezan a irse
+        // En feriado y en fin de semana nadie va apurado: `dia.calma` son los minutos de más que la gente espera sin molestarse.
+        const AGUANTE = 2.5 + (plan.pantallas ? 1.2 : 0) + (dia.calma || 0);      // minutos de andén que nadie reprocha
+        const PACIENCIA = 11 + (plan.pantallas ? 2 : 0) + (dia.calma || 0);       // y a partir de cuántos empiezan a irse
         const VENTANILLA = PAGO.ventanilla * (plan.cajeros ? 1.25 : 1);
         const INGRESO = 1 + 0.03 * (plan.publicidad || 0);            // la publicidad en estaciones y trenes suma a cada pasaje
         const FIJO = (dia.fijo || 1) * (1 - 0.06 * (plan.solar || 0));  // los paneles solares abaratan la operación de las estaciones
@@ -146,7 +147,7 @@ const JEFE = (() => {
         };
         const hechos = new Set(), tareas = [];
         let alarma = -999, ronda = abre, acum = 0;
-        const aviso = (tipo, texto, i = -1) => S.avisos.push({ tipo, texto, i, t: S.t });
+        const aviso = (tipo, texto, i = -1, mapa = false) => S.avisos.push({ tipo, texto, i, t: S.t, mapa });      // `mapa`: algo que pasa en la ciudad y conviene mirar ahí
         const miles = (v) => Math.round(v).toLocaleString('de-DE');
 
         /** Una opinión: `n` pasajeros que califican su viaje con `nota` (0 a 100). Mueve el ánimo general y el de la estación. */
@@ -321,9 +322,9 @@ const JEFE = (() => {
                 hechos.add(k);
                 if (ev.tipo === 'averia') S.averiar(ev.est, ev.min);
                 else if (ev.tipo === 'maquina') S.danarMaquinas(ev.est, ev.min);
-                else if (ev.tipo === 'aviso') aviso(ev.tono || 'info', ev.texto, ev.est === undefined ? -1 : ev.est);
-                else if (ev.tipo === 'cierre') { S.cerrarEstacion(ev.est, ev.min); aviso('mal', ev.texto, ev.est); }
-                else if (ev.tipo === 'corte') { S.cortarTramo(ev.de, ev.a, ev.min, ev.deja); aviso('mal', ev.texto, ev.a); }
+                else if (ev.tipo === 'aviso') aviso(ev.tono || 'info', ev.texto, ev.est === undefined ? -1 : ev.est, !!ev.mapa);
+                else if (ev.tipo === 'cierre') { S.cerrarEstacion(ev.est, ev.min); aviso('mal', ev.texto, ev.est, true); }
+                else if (ev.tipo === 'corte') { S.cortarTramo(ev.de, ev.a, ev.min, ev.deja); aviso('mal', ev.texto, ev.a, true); }
                 else if (ev.tipo === 'lenta') { S.boleteriaLenta(ev.est, ev.min, ev.f); if (ev.texto) aviso(ev.tono || 'info', ev.texto, ev.est); }
                 else if (ev.tipo === 'oleada') S.oleada(ev.est, ev.min, ev.porMin);
                 else if (ev.tipo === 'decision') S.decisiones.push(ev);

@@ -101,49 +101,7 @@ with sync_playwright() as p:
     load('juego')
     check('Continuar tras recargar', page.get_by_role('button', name='Continuar', exact=True).count() == 1)
     page.get_by_role('button', name='Continuar', exact=True).click()
-    campaign_before = page.evaluate('JSON.stringify({caja:Q.juego.partida.caja,maquinas:Q.juego.partida.maquinas,estrellas:Q.juego.partida.estrellas,horario:Q.juego.partida.horario})')
-    page.get_by_role('button', name='Inducción', exact=True).click()
-    check('Tutorial visible', page.locator('#jtut').is_visible())
-    visited = set()
-    for action in range(100):
-        if page.evaluate('Q.juego.sim === null'):
-            break
-        step = int(page.locator('#jtut .zona').text_content().split('·')[1].strip().split(' ')[0])
-        visited.add(step)
-        if step in (1, 2, 7, 12, 14, 21):
-            page.locator('#jtut').get_by_role('button', name='Siguiente', exact=True).click()
-        elif step == 3:
-            page.get_by_role('button', name='×1', exact=True).click()
-        elif step in (4, 8, 19, 22):
-            page.evaluate("""() => { const label=document.querySelector('#jtut .zona').textContent; for(let i=0;i<180&&Q.juego.sim&&document.querySelector('#jtut .zona').textContent===label;i++) Q.mapa.extra.paso(1); }""")
-        elif step == 5:
-            page.get_by_role('button', name='Horario', exact=True).click()
-        elif step == 6:
-            page.locator('#jpanel .franja .menos').nth(1).click()
-        elif step == 9:
-            point = page.evaluate("""() => { const r=document.querySelector('#view').getBoundingClientRect(), x=Q.W<300?10:Q.W<480?18:30; return {x:r.left+x*r.width/Q.W,y:r.top+(Q.H-Q.mapa.extra.alto+28)*r.height/Q.H}; }""")
-            page.mouse.click(point['x'], point['y'])
-        elif step == 10:
-            page.locator('#jest .vmas').click()
-        elif step in (11, 17):
-            page.locator('#jest .dentro').click()
-            if step == 11:
-                shot('tutorial')
-        elif step in (13, 18):
-            page.get_by_role('button', name='← Volver al mapa', exact=True).click()
-        elif step == 15:
-            page.locator('#jefe button:enabled').filter(has_text='Tren extra').first.click()
-        elif step == 16:
-            if not page.locator('#jpanel.trenes').is_visible():
-                page.get_by_role('button', name='Trenes', exact=True).click()
-            page.locator('#jpanel .tren:not(.quieto)').first.click()
-        elif step == 20:
-            page.locator('#jdec .opcion').first.click()
-        else:
-            raise AssertionError('Paso de tutorial desconocido: ' + str(step))
-    check('Inducción: 22 pasos completados', visited == set(range(1, 23)) and page.evaluate('Q.juego.sim === null'))
-    check('Inducción conserva recursos de campaña', campaign_before == page.evaluate('JSON.stringify({caja:Q.juego.partida.caja,maquinas:Q.juego.partida.maquinas,estrellas:Q.juego.partida.estrellas,horario:Q.juego.partida.horario})'))
-    check('Inducción terminada queda guardada', page.evaluate("JSON.parse(localStorage.getItem('quito-jefe-de-linea')).partidas[0].tutorial"))
+    # La inducción ya no existe: cada día de la semana trae su propia guía, y se prueban en tools/playtest-semana.py.
     saved = page.evaluate("localStorage.getItem('quito-jefe-de-linea')")
     load()
     page.locator('#jugar').click()
@@ -151,7 +109,9 @@ with sync_playwright() as p:
     initial = page.evaluate('Q.juego.sim.t')
     page.wait_for_function('(t) => Q.juego.sim.t > t + 1', arg=initial)
     check('Jugar inicia directamente el día guardado y su reloj', page.locator('body.dentro').count() == 1 and not page.locator('#jfin').is_visible())
-    check('Jugar conserva el progreso guardado', page.evaluate("localStorage.getItem('quito-jefe-de-linea')") == saved and page.evaluate("document.querySelector('#jefe strong').textContent.startsWith(CAMPANA.DIAS[Q.juego.partida.dia].n)"))
+    # Al entrar, el turno en curso se guarda solo: lo que no cambia es el progreso (día, estrellas y caja).
+    progreso = "JSON.stringify((({dia, estrellas, caja}) => ({dia, estrellas, caja}))(JSON.parse(localStorage.getItem('quito-jefe-de-linea')).partidas[0]))"
+    check('Jugar conserva el progreso guardado', page.evaluate(progreso) == json.dumps({k: json.loads(saved)['partidas'][0][k] for k in ('dia', 'estrellas', 'caja')}, separators=(',', ':')) and page.evaluate("document.querySelector('#jefe strong').textContent.startsWith(CAMPANA.DIAS[Q.juego.partida.dia].n)"))
     page.get_by_role('button', name='Pausar', exact=True).click()
     before = page.evaluate('Q.juego.sim.t')
     page.evaluate('Q.mapa.extra.paso(1)')
@@ -181,6 +141,7 @@ with sync_playwright() as p:
     check('Decisión bloquea el reloj', page.evaluate('Q.juego.sim.t') == before)
     page.locator('#jdec .opcion').first.click()
     check('Decisión se resuelve', not page.locator('#jdec').is_visible())
+    saved = page.evaluate("localStorage.getItem('quito-jefe-de-linea')")      # ya con el turno a medias que dejó Jugar
     for day in range(7):
         load(f'shot&juego=1&jdia={day}&jplan=real&jfin=1')
         check(f'Día {day + 1}: simulación e informe completos', page.locator('#jfin').is_visible() and page.evaluate('Q.juego.sim === null'))

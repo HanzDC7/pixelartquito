@@ -195,7 +195,7 @@
         const tren = (dir, yb) => {
             for (const tr of sim.trenes) {
                 if (tr.dir !== dir || tr.estado === 'cochera' || tr.estado === 'taller' || tr.estado === 'listo' || tr.estado === 'vuelta') continue;
-                const d = tr.s - e.pos; if (Math.abs(d) > 190) continue;
+                const d = (sim.ver ? sim.ver(tr) : tr.s) - e.pos; if (Math.abs(d) > 190) continue;      // dónde va entre un paso y otro, para que entre sin saltos
                 const cw = Math.round(18 * ppm), largo = cw * 6 + 5, x0 = Math.round(xc + d * ppm - largo / 2), parado = tr.estado === 'parada' && Math.abs(d) < 1, lleno = tr.total / 1230;
                 const col = lleno > 0.95 ? '#B01E3A' : lleno > 0.7 ? '#8A4A1E' : '#3A3A40';
                 for (let k = 0; k < 6; k++) vagon(v, x0 + k * (cw + 1), yb - ah, cw, ah, lleno, parado, tr.id * 10 + k, col);

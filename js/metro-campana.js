@@ -28,18 +28,17 @@
  * inundación de El Labrador es la del 4 de octubre de 2026. Lo demás es
  * inventado.
  *
- * El turno sin fin recorre el calendario de verdad (ver «El calendario»):
- * los feriados nacionales con su traslado, Carnaval y Viernes Santo por la
- * fecha de Pascua, y las fechas de Quito. Qué días sube y qué días baja la
- * gente sale de cifras publicadas por el Metro cuando las hay (el récord de
- * 273.997 viajes del viernes de fiestas de 2025, los 150.068 de un viernes
- * feriado contra 201.624 del jueves anterior, los 136.405 de un sábado, los
- * 102.077 del día más flojo de diciembre, los 151.203 del domingo de la
- * Quito 15K, la procesión del Viernes Santo con el ingreso restringido en San
- * Francisco); donde no hay cifra, la proporción es estimada y lo dice.
+ * El turno sin fin recorre el calendario de verdad, que está en
+ * js/metro-calendario.js: los feriados nacionales con su traslado, el
+ * carnaval y el Viernes Santo por la fecha de Pascua, las fechas de Quito, y
+ * cuánta gente se mueve cada día según las cifras que publica el Metro. Aquí
+ * se le suma lo que hace de cada fecha un día de juego: a dónde va la gente,
+ * qué eventos hay y qué decisiones trae.
  */
 const CAMPANA = (() => {
-    const SIM = typeof JEFE !== 'undefined' ? JEFE : require('./metro-sim.js');      // en el navegador ya está cargada; en Node se pide
+    // En el navegador la simulación y el calendario ya están cargados; en Node se piden.
+    const SIM = typeof JEFE !== 'undefined' ? JEFE : require('./metro-sim.js');
+    const CAL = typeof CALENDARIO !== 'undefined' ? CALENDARIO : require('./metro-calendario.js');
     const miles = (v) => Math.round(v).toLocaleString('de-DE');
     const coma = (v) => v.toFixed(1).replace('.', ',');
     const NOMBRE = ['Quitumbe', 'Morán Valverde', 'Solanda', 'Cardenal de la Torre', 'El Recreo', 'La Magdalena', 'San Francisco', 'La Alameda', 'El Ejido', 'Universidad Central', 'La Pradera', 'La Carolina', 'Iñaquito', 'Jipijapa', 'El Labrador'];
@@ -208,6 +207,40 @@ const CAMPANA = (() => {
                 { t: 'Es asunto de la Policía', d: 'Nada cambia. Las denuncias, tampoco.', fx: (S) => { S.opinion(i, 15, 900); }, r: 'Otra denuncia más.', tono: 'mal' },
             ],
         }),
+        carnavaleros: (i) => ({
+            id: 'carnavaleros', est: i, titulo: 'Carnaval en el andén',
+            texto: `Un grupo juega carnaval con espuma y globos de agua en el vestíbulo de ${NOMBRE[i]}. El piso ya está mojado y medio andén, también.`,
+            opciones: [
+                { t: 'Aquí adentro no se juega', d: 'Los guardias los sacan a la plaza. Se van protestando.', fx: (S) => { S.opinion(i, 60, 700); }, r: 'El carnaval sigue afuera, en la plaza.' },
+                { t: 'Dejarlos: es carnaval', d: 'Risas y espuma, pero el piso resbala: las paradas de toda la línea se alargan un 15% durante dos horas.', fx: (S) => { S.paradas(120, 1.15); S.opinion(i, 90, 1200); }, r: `Espuma hasta en los torniquetes de ${NOMBRE[i]}.` },
+                { t: 'Poner una zona de juego en la plaza (−$300)', d: 'Con tanque de agua y todo. Nadie se moja adentro.', fx: (S) => { S.gasto(300); S.opinion(i, 100, 1500); }, r: `Carnaval en la plaza de ${NOMBRE[i]}, con tanque de agua incluido.`, tono: 'bien' },
+            ],
+        }),
+        procesion: () => ({
+            id: 'procesion', est: 6, titulo: 'Sale la procesión',
+            texto: 'En un rato sale de San Francisco la procesión de Jesús del Gran Poder: cucuruchos, verónicas y más de cien mil personas. La boca del Metro queda en medio.',
+            opciones: [
+                { t: 'Entrada solo por el bulevar 24 de Mayo, salida por la plaza', d: 'Es lo que hace el Metro cada año. Ordenado, pero la entrada a San Francisco va a poco más de la mitad hasta las 18:00.', fx: (S) => { S.boleteriaLenta(6, Math.max(60, 18 * 60 - S.t), 0.6); S.opinion(6, 90, 2500); }, r: 'San Francisco: se entra por el bulevar y se sale por la plaza. Recomienda La Alameda.' },
+                { t: 'Todos los accesos abiertos', d: 'La estación trabaja a su ritmo, pero la gente que sale se cruza con la procesión.', fx: (S) => { S.opinion(6, 20, 3000); }, r: 'La salida de San Francisco se topa con la procesión.', tono: 'mal' },
+                { t: 'Cerrar San Francisco dos horas y mandar a La Alameda', d: 'Nadie se cruza con nadie. Todo el centro entra y sale por La Alameda.', fx: (S) => { const min = S.cerrarEstacion(6, 120, true); S.oleada(7, min, 60); S.luego(min, (Q) => Q.avisar('bien', 'Pasó la procesión. San Francisco vuelve a abrir.', 6)); }, r: 'San Francisco cierra mientras pasa la procesión. La Alameda recibe a todos.', tono: 'mal' },
+            ],
+        }),
+        novena: (i) => ({
+            id: 'novena', est: i, titulo: 'Novena en el vestíbulo',
+            texto: `Los vecinos piden rezar la novena, con villancicos y pristiños, en el vestíbulo de ${NOMBRE[i]} a las seis de la tarde.`,
+            opciones: [
+                { t: 'Que la recen aquí', d: 'Villancicos en el vestíbulo. La boletería va un 20% más lenta durante una hora.', fx: (S) => { S.boleteriaLenta(i, 60, 0.8); S.opinion(i, 100, 1800); }, r: `«Dulce Jesús mío» suena en ${NOMBRE[i]}.`, tono: 'bien' },
+                { t: 'Mejor en la plaza de afuera', d: 'El vestíbulo queda libre.', fx: (S) => { S.opinion(i, 70, 500); }, r: 'La novena se reza en la plaza.' },
+            ],
+        }),
+        viejos: (i) => ({
+            id: 'viejos', est: i, titulo: 'Un año viejo en el andén',
+            texto: `Unas «viudas» piden caridad en la entrada de ${NOMBRE[i]}, y un grupo quiere subir al tren con un monigote de dos metros para quemarlo en su barrio.`,
+            opciones: [
+                { t: 'Que pasen, con monigote y todo', d: 'Fotos, risas y un tren que tarda en cerrar puertas: las paradas se alargan un 10% durante una hora.', fx: (S) => { S.paradas(60, 1.1); S.opinion(i, 100, 2000); }, r: 'El año viejo viaja sentado, con su testamento.', tono: 'bien' },
+                { t: 'El monigote no sube', d: 'Los trenes van a su ritmo. El grupo se va a pie, molesto.', fx: (S) => { S.opinion(i, 50, 700); }, r: 'El monigote se queda en la vereda.' },
+            ],
+        }),
         aire: () => ({
             id: 'aire', titulo: 'Un tren sin ventilación',
             texto: 'A uno de los trenes se le dañó la ventilación. Con gente adentro, es un horno.',
@@ -281,7 +314,7 @@ const CAMPANA = (() => {
                         { t: 'Nada especial: que paguen al salir', d: 'No cuesta nada ahora. Las boleterías de Iñaquito y La Carolina tendrán que aguantar.', r: 'Las boleterías esperan el pitazo final.' },
                     ],
                 },
-                { hora: 19.5, tipo: 'aviso', texto: 'Empezó el partido. Tienes hasta las 21:15 para preparar la salida del estadio: trenes, ventanillas y máquinas.', est: 12 },
+                { hora: 19.5, tipo: 'aviso', texto: 'Empezó el partido. Tienes hasta las 21:15 para preparar la salida del estadio: trenes, ventanillas y máquinas.', est: 12, mapa: true },
                 {
                     hora: 21.27, tipo: 'decision', id: 'barras', est: 12, titulo: 'Pitazo final',
                     texto: 'Salen treinta mil personas. Las barras llegan primero a Iñaquito, cantando y con ganas de entrar todas a la vez.',
@@ -344,7 +377,7 @@ const CAMPANA = (() => {
                         { t: 'Mejor en el parque, arriba', d: 'El vestíbulo queda libre.', fx: (S) => { S.opinion(8, 70, 600); }, r: 'El campeonato se juega en el parque El Ejido.' },
                     ],
                 },
-                { hora: 17.6, tipo: 'aviso', tono: 'bien', texto: '¡Que viva Quito! Salen las chivas y empiezan las tarimas en el Centro Histórico.', est: 6 },
+                { hora: 17.6, tipo: 'aviso', tono: 'bien', texto: '¡Que viva Quito! Salen las chivas y empiezan las tarimas en el Centro Histórico.', est: 6, mapa: true },
                 { hora: 19.7, tipo: 'averia', est: 8, min: 8 },
                 {
                     hora: 20.5, tipo: 'decision', id: 'serenata', est: 6, titulo: 'Serenata hasta la medianoche',
@@ -395,7 +428,7 @@ const CAMPANA = (() => {
                         { t: 'Seguir abiertos con el piso mojado', d: 'Nadie pierde su tren, pero la boletería de El Labrador trabaja a la mitad hasta el cierre y habrá resbalones.', fx: (S) => { S.boleteriaLenta(14, 300, 0.5); S.opinion(14, 10, 1500); }, r: 'El Labrador sigue abierta, entre baldes y conos.', tono: 'mal' },
                     ],
                 },
-                { hora: 19.6, tipo: 'aviso', texto: 'Última canción en el Parque Bicentenario. En media hora, cuarenta mil personas caminan hacia El Labrador y Jipijapa.', est: 14 },
+                { hora: 19.6, tipo: 'aviso', texto: 'Última canción en el Parque Bicentenario. En media hora, cuarenta mil personas caminan hacia El Labrador y Jipijapa.', est: 14, mapa: true },
             ],
         }, DOMINGO),
     ];
@@ -424,145 +457,58 @@ const CAMPANA = (() => {
         { de: 0, n: 'Jefe a prueba', d: 'La semana terminó. Te la juegas de nuevo: repite los días flojos para subir de rango.' },
     ];
 
-    // ───────────────────────── El calendario ─────────────────────────
-    const DIA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    // ───────────────────────── El turno sin fin ─────────────────────────
+    // La fecha de cada día sale del calendario de verdad: qué día es, si es feriado y cuánta gente se mueve según
+    // las cifras del Metro. Aquí se le suma lo que hace de esa fecha un día de juego.
     const mas = (f, n) => new Date(f.getFullYear(), f.getMonth(), f.getDate() + n);
-    const clave = (f) => f.getFullYear() * 10000 + (f.getMonth() + 1) * 100 + f.getDate();
-    const fechaTxt = (f) => `${f.getDate()} de ${MES[f.getMonth()]}` + (f.getFullYear() === 2026 ? '' : ` de ${f.getFullYear()}`);
-    /** El domingo de Pascua de ese año (cómputo gregoriano). De él salen Carnaval y el Viernes Santo. */
-    const pascua = (a) => {
-        const g = a % 19, c = Math.floor(a / 100), h = (c - Math.floor(c / 4) - Math.floor((8 * c + 13) / 25) + 19 * g + 15) % 30;
-        const i = h - Math.floor(h / 28) * (1 - Math.floor(29 / (h + 1)) * Math.floor((21 - g) / 11)), j = (a + Math.floor(a / 4) + i + 2 - c + Math.floor(c / 4)) % 7;
-        const l = i - j, m = 3 + Math.floor((l + 40) / 44);
-        return new Date(a, m - 1, l + 28 - 31 * Math.floor(m / 4));
-    };
-    /**
-     * El día en que de verdad se descansa por un feriado nacional, según la ley de feriados: si cae sábado pasa al
-     * viernes; domingo, al lunes; martes, al lunes; miércoles o jueves, al viernes. No se mueven el 1 de enero, el
-     * 25 de diciembre ni el Carnaval.
-     */
-    const traslado = (f) => mas(f, [1, 0, -1, 2, 1, 0, -1][f.getDay()]);
-    const hasta = (f, dia, paso) => { while (f.getDay() !== dia) f = mas(f, paso); return f; };
-    /** Las fechas señaladas de un año: [fecha, cuál]. */
-    const fechasDe = (a) => {
-        const P = pascua(a);
-        return [
-            [new Date(a, 0, 1), 'anioNuevo'], [mas(P, -51), 'exodo'], [mas(P, -48), 'carnaval'], [mas(P, -2), 'viernesSanto'],
-            [traslado(new Date(a, 4, 1)), 'trabajo'], [traslado(new Date(a, 4, 24)), 'pichincha'], [hasta(new Date(a, 4, 31), 0, -1), 'carrera'],
-            [traslado(new Date(a, 7, 10)), 'agosto'], [hasta(new Date(a, 8, 1), 1, 1), 'clases'], [traslado(new Date(a, 9, 9)), 'octubre'],
-            [traslado(new Date(a, 10, 2)), 'difuntos'], [hasta(new Date(a, 11, 5), 5, -1), 'viernesFiestas'], [new Date(a, 11, 6), 'quito'],
-            [new Date(a, 11, 24), 'nochebuena'], [new Date(a, 11, 25), 'navidad'], [new Date(a, 11, 31), 'anioViejo'],
-        ];
-    };
-    const tablas = new Map();
-    /** ¿Es una fecha señalada? Devuelve cuál, o nada. */
-    const hito = (f) => {
-        const a = f.getFullYear();
-        if (!tablas.has(a)) tablas.set(a, new Map(fechasDe(a).map(([d, cual]) => [clave(d), cual])));
-        return tablas.get(a).get(clave(f));
-    };
+    const fechaTxt = (f) => `${f.getDate()} de ${CAL.MES[f.getMonth()]}` + (f.getFullYear() === 2026 ? '' : ` de ${f.getFullYear()}`);
+    // Fechas con nombre por las que el turno no se detiene a propósito: si le toca caer en ellas se notan, pero no las busca.
+    const DE_PASO = new Set(['Compras de Navidad', 'Semana de fin de año', 'Fiesta de la Luz', 'Sábado de carnaval', 'Domingo de carnaval', 'Martes de carnaval', 'Jueves Santo', 'Sábado Santo', 'Domingo de Pascua', 'Independencia de Cuenca', 'Aniversario del Metro']);
+    /** ¿Es una fecha señalada, de las que el turno nunca se salta? Devuelve lo que dice de ella el calendario. */
+    const senalada = (f) => { const c = CAL.de(f); return c.n && !DE_PASO.has(c.n) ? c : null; };
 
-    // Un feriado cualquiera: abre a las 07:00, cierra a las 22:00 y mueve unos 150.000 viajes (así fue el viernes 9 de agosto de 2024).
-    const FERIADO = { abre: 7, cierra: 22, fijo: 0.62, perfil: [[7, 0.25], [9, 0.6], [11, 0.95], [13, 1.05], [15, 1.0], [17, 1.05], [19, 0.95], [20.5, 0.7], [22, 0.35]], vuelta: [[7, 0.35], [13, 0.5], [18, 0.75], [22, 1]] };
-    const TEMPRANO = [[5.5, 0.3], [7, 1.5], [8.5, 1.4], [10, 1.2], [12, 1.5], [14, 1.85], [16, 1.9], [18, 1.3], [19.5, 0.6], [21, 0.25], [23, 0.1]];      // un día que se acaba pronto: todos a casa antes de la noche
+    const TEMPRANO = [[5.5, 0.3], [7, 1.5], [8.5, 1.4], [10, 1.2], [12, 1.5], [14, 1.85], [16, 1.9], [18, 1.3], [19.5, 0.6], [21, 0.25], [23, 0.1]];      // un día que se acaba pronto: todos en casa antes de la noche
+    const A_CASA = [[9, 0], [12, 0.5], [15, 1]];
+    const FIESTA_QUITO = (f) => ({
+        eventos: [{ est: 11, de: 12.6, a: 14, porMin: 95 * f, sitio: 'carolina', n: 'Desfile de la confraternidad' }, { est: 12, de: 12.6, a: 14, porMin: 80 * f, sitio: 'carolina' }, { est: 14, de: 20.2, a: 21.5, porMin: 190 * f, sitio: 'bicentenario', n: 'Concierto del Bicentenario' }],
+        parte: ['Desfile al mediodía en La Carolina y concierto de cierre junto a El Labrador'],
+    });
     /**
-     * Lo que trae cada fecha señalada. `demanda` es la fracción de los viajes de un día laborable (1 = unos 205.000);
-     * `sube` dice si ese día hay más o menos gente que en uno normal; `cuanto` lo resume para el jugador; `real` marca lo que sale de cifras publicadas. `f` es la fuerza de los eventos, que
-     * crece con los días.
+     * Lo que el juego le pone a una fecha del calendario, además de la cantidad de gente: a dónde quiere llegar esa
+     * gente (imanes), qué eventos hay, cómo se reparte el día y qué se le advierte al jugador. `f` es la fuerza de
+     * los eventos, que crece con los días.
      */
-    const HITOS = {
-        anioNuevo: () => ({ n: 'Año Nuevo', sube: -1, feriado: true, demanda: 0.48, cuanto: 'De los días más flojos del año', parte: ['Feriado: de 07:00 a 22:00', 'La ciudad amanece tarde: muy poca gente hasta el mediodía', 'Con tan pocos pasajes, lo difícil hoy es la caja'] }),
-        exodo: (f) => ({
-            n: 'Viernes de Carnaval', sube: 1, demanda: 1.08, cuanto: 'Tarde de éxodo hacia las terminales',
+    const TEXTURA = {
+        'Víspera de carnaval': () => ({
             imanes: [{ est: 0, de: 12.5, a: 20.5, f: 3.2 }, { est: 14, de: 12.5, a: 20.5, f: 1.8 }],
-            eventos: [{ est: 6, de: 13, a: 18, porMin: 45 * f }, { est: 11, de: 13, a: 18, porMin: 45 * f }],
-            parte: ['Día laborable, y esta tarde empieza el feriado de Carnaval', 'Desde el mediodía, media ciudad va a la Terminal Quitumbe: los trenes al sur salen llenos', 'En un feriado salen por las terminales de Quito más de 130.000 personas'],
-            sucesos: [{ hora: 12.2, tipo: 'aviso', texto: 'Empieza el éxodo de Carnaval. Los andenes hacia el sur se van a llenar: Quitumbe es la terminal de buses.', est: 0 }],
+            parte: ['Desde el mediodía, media ciudad va a la Terminal Quitumbe: los trenes al sur salen llenos'],
+            avisos: [[12.2, 'Empieza el éxodo de carnaval. Los andenes hacia el sur se van a llenar: Quitumbe es la terminal de buses.', 0]],
         }),
-        carnaval: () => ({ n: 'Lunes de Carnaval', sube: -1, feriado: true, demanda: 0.5, cuanto: 'La ciudad se fue de viaje', parte: ['Feriado: de 07:00 a 22:00', 'Quien se quedó juega con espuma y agua; casi nadie va a trabajar', 'Pocos pasajes: espaciar los trenes o cerrar en rojo'] }),
-        viernesSanto: (f) => ({
-            n: 'Viernes Santo', sube: 1, feriado: true, demanda: 0.8, cuanto: 'Procesión de Jesús del Gran Poder: el centro se desborda', real: true,
-            imanes: [{ est: 6, de: 7, a: 12.5, f: 5 }, { est: 7, de: 7, a: 12.5, f: 2.5 }],
-            eventos: [{ est: 6, de: 15, a: 18, porMin: 170 * f, sitio: 'sanfrancisco', n: 'Procesión de Jesús del Gran Poder' }, { est: 7, de: 15, a: 18, porMin: 90 * f, sitio: 'sanfrancisco' }],
-            parte: ['Feriado: de 07:00 a 22:00', 'Más de 100.000 personas en la procesión, que sale de San Francisco al mediodía', 'En San Francisco se entra solo por el bulevar 24 de Mayo hasta las 18:00: la boletería va más lenta', 'La Alameda es la alternativa'],
-            sucesos: [
-                { hora: 7.05, tipo: 'lenta', est: 6, min: 655, f: 0.6, texto: 'Viernes Santo: en San Francisco se entra solo por el bulevar 24 de Mayo y se sale por la plaza. Recomienda La Alameda.' },
-                { hora: 14.6, tipo: 'aviso', texto: 'Termina la procesión. Cien mil personas con túnicas moradas y cucuruchos buscan la boca del Metro.', est: 6 },
-            ],
+        'Viernes Santo': () => ({ imanes: [{ est: 6, de: 7, a: 12.5, f: 5 }, { est: 7, de: 7, a: 12.5, f: 2.5 }], parte: ['Poca gente en la línea y muchísima en el centro: La Alameda es la alternativa a San Francisco'] }),
+        'Nochebuena': (f) => ({
+            perfil: TEMPRANO, vuelta: A_CASA,
+            eventos: [{ est: 6, de: 12.5, a: 17.5, porMin: 60 * f, sitio: 'plaza', n: 'Últimas compras en el centro' }, { est: 11, de: 13, a: 18, porMin: 50 * f, sitio: 'carolina', n: 'Compras en el norte' }, { est: 4, de: 13.5, a: 18, porMin: 35 * f, sitio: 'recreo' }],
+            parte: ['Tarde de últimas compras en el centro, La Carolina y El Recreo', 'Desde las 20:00 no queda nadie: los trenes de la noche van vacíos'],
         }),
-        trabajo: (f) => ({
-            n: 'Día del Trabajo', sube: -1, feriado: true, demanda: 0.68, cuanto: 'Feriado, con marcha en el centro por la mañana',
+        'Fin de año': (f) => ({
+            perfil: TEMPRANO, vuelta: A_CASA,
+            eventos: [{ est: 8, de: 14, a: 19, porMin: 65 * f, sitio: 'mariscal', n: 'Años viejos en la avenida Amazonas' }, { est: 11, de: 14.5, a: 19, porMin: 40 * f, sitio: 'carolina' }],
+            parte: ['Monigotes y viudas en la avenida Amazonas toda la tarde', 'A las 22:00 todo el mundo está en su casa, quemando el año viejo'],
+        }),
+        'Día del Trabajo': (f) => ({
             imanes: [{ est: 8, de: 7, a: 10.5, f: 2.5 }, { est: 6, de: 7, a: 10.5, f: 2 }],
             eventos: [{ est: 6, de: 12, a: 13.8, porMin: 85 * f, sitio: 'plaza', n: 'Marcha del Primero de Mayo' }, { est: 7, de: 12, a: 13.8, porMin: 45 * f, sitio: 'plaza' }],
-            parte: ['Feriado: de 07:00 a 22:00', 'La marcha de los trabajadores baja de El Ejido a la Plaza de San Francisco y se disuelve al mediodía'],
-            decisiones: [['protesta', 9.6]],
+            parte: ['La marcha de los trabajadores baja de El Ejido a la Plaza de San Francisco y se disuelve al mediodía'], decisiones: [['protesta', 9.6, 6]],
         }),
-        pichincha: () => ({ n: 'Batalla de Pichincha', sube: -1, feriado: true, demanda: 0.62, cuanto: 'Feriado largo: media ciudad salió', parte: ['Feriado: de 07:00 a 22:00', 'Ceremonia en la Cima de la Libertad, lejos del Metro', 'Pocos pasajes: hoy manda la caja'] }),
-        carrera: (f) => ({
-            n: 'Quito 15K', sube: 1, demanda: 0.74, cuanto: 'El domingo de más viajes del año', real: true,
-            dia: { abre: 5.5 },
-            imanes: [{ est: 1, de: 5.5, a: 7.5, f: 4 }, { est: 2, de: 5.5, a: 7.5, f: 3 }],
-            eventos: [{ est: 12, de: 9.5, a: 12.5, porMin: 120 * f, sitio: 'estadio', n: 'Meta de la Quito 15K' }, { est: 11, de: 9.5, a: 12.5, porMin: 70 * f, sitio: 'estadio' }],
-            parte: ['Domingo, pero hoy el Metro abre a las 05:30 por la carrera', 'Miles de corredores van al sur antes de las 07:00 y salen del norte, cansados, desde las 09:30', 'En 2026 fue el domingo de más viajes del año: 151.203'],
+        'Día de Difuntos': (f) => ({
+            imanes: [{ est: 6, de: 8, a: 12, f: 2.2 }], eventos: [{ est: 6, de: 11.5, a: 14.5, porMin: 55 * f, sitio: 'sanfrancisco', n: 'Cementerio de San Diego' }],
+            parte: ['Colada morada, guaguas de pan y visita al cementerio de San Diego, a unas cuadras de San Francisco'],
         }),
-        agosto: (f) => ({
-            n: 'Primer Grito de Independencia', sube: 1, feriado: true, demanda: 0.93, cuanto: 'Feriado con Fiesta de la Luz: noche llena en el centro', real: true,
-            dia: { cierra: 24 },
-            imanes: [{ est: 6, de: 17, a: 21, f: 4 }, { est: 7, de: 17, a: 21, f: 2 }],
-            eventos: [{ est: 6, de: 20.5, a: 23.6, porMin: 150 * f, sitio: 'plaza', n: 'Fiesta de la Luz' }, { est: 7, de: 20.5, a: 23.6, porMin: 70 * f, sitio: 'plaza' }],
-            parte: ['Feriado, y el Metro cierra a las 00:00 por el festival de luces', 'Las fachadas del Centro Histórico se iluminan desde las 19:00', 'En 2025, San Francisco fue la estación más usada del feriado'],
-        }),
-        clases: (f) => ({
-            n: 'Regreso a clases', sube: 1, demanda: 1.07, cuanto: 'Vuelven los estudiantes: picos más altos',
-            eventos: [{ est: 9, de: 12.5, a: 14, porMin: 60 * f, sitio: 'universidad', n: 'Salida de clases' }, { est: 9, de: 17.5, a: 19, porMin: 50 * f, sitio: 'universidad' }],
-            imanes: [{ est: 9, de: 6, a: 8.5, f: 1.8 }],
-            parte: ['Primer día de clases en la Sierra', 'La Universidad Central se nota en los dos picos y al mediodía'],
-        }),
-        octubre: () => ({ n: 'Feriado del 9 de Octubre', sube: -1, feriado: true, demanda: 0.62, cuanto: 'Feriado largo: media ciudad salió', parte: ['Feriado: de 07:00 a 22:00', 'Pocos pasajes: hoy manda la caja'] }),
-        difuntos: (f) => ({
-            n: 'Día de los Difuntos', sube: -1, feriado: true, demanda: 0.7, cuanto: 'Feriado, con romería a los cementerios',
-            imanes: [{ est: 6, de: 8, a: 12, f: 2.2 }],
-            eventos: [{ est: 6, de: 11.5, a: 14.5, porMin: 55 * f, sitio: 'sanfrancisco', n: 'Cementerio de San Diego' }],
-            parte: ['Feriado: de 07:00 a 22:00', 'Colada morada, guaguas de pan y visita al cementerio de San Diego, a unas cuadras de San Francisco'],
-        }),
-        viernesFiestas: (f) => ({
-            n: 'Viernes de fiestas', sube: 1, demanda: 1.25, cuanto: 'El día de más viajes del año', real: true,
-            dia: { fiestas: 17.5 },
-            eventos: [{ est: 6, de: 21.2, a: 22.8, porMin: 140 * f, sitio: 'plaza', n: 'Tarimas del Centro Histórico' }, { est: 8, de: 21, a: 22.8, porMin: 80 * f, sitio: 'mariscal', n: 'Chivas en La Mariscal' }, { est: 11, de: 21, a: 22.7, porMin: 80 * f, sitio: 'carolina' }],
-            parte: ['Día laborable, con las Fiestas de Quito encima', 'El viernes de fiestas de 2025 el Metro hizo 273.997 viajes: su récord', 'Tarimas y chivas hasta el cierre'],
-        }),
-        quito: (f) => ({
-            n: 'Día de Quito', sube: 1, feriado: true, demanda: 0.95, cuanto: 'Feriado de la ciudad, con desfile y concierto',
-            dia: { fiestas: 18 },
-            eventos: [{ est: 11, de: 12.6, a: 14, porMin: 95 * f, sitio: 'carolina', n: 'Desfile de la confraternidad' }, { est: 12, de: 12.6, a: 14, porMin: 80 * f, sitio: 'carolina' }, { est: 14, de: 20.2, a: 21.5, porMin: 200 * f, sitio: 'bicentenario', n: 'Concierto del Bicentenario' }],
-            parte: ['Feriado de la ciudad: de 07:00 a 22:00', 'Desfile al mediodía en La Carolina y concierto de cierre junto a El Labrador'],
-        }),
-        nochebuena: (f) => ({
-            n: 'Nochebuena', sube: 0, demanda: 0.93, cuanto: 'Mañana normal, tarde de compras y noche vacía',
-            dia: { perfil: TEMPRANO, vuelta: [[9, 0], [12, 0.5], [15, 1]] },
-            eventos: [{ est: 6, de: 12.5, a: 17.5, porMin: 70 * f, sitio: 'plaza', n: 'Últimas compras en el centro' }, { est: 11, de: 13, a: 18, porMin: 60 * f, sitio: 'carolina', n: 'Compras en el norte' }, { est: 4, de: 13.5, a: 18, porMin: 40 * f, sitio: 'recreo' }],
-            parte: ['Día laborable: de 05:30 a 23:00', 'Tarde de últimas compras en el centro, La Carolina y El Recreo', 'Desde las 20:00 no queda nadie: los trenes de la noche van vacíos'],
-        }),
-        navidad: () => ({ n: 'Navidad', sube: -1, feriado: true, demanda: 0.5, cuanto: 'El día de menos viajes de diciembre', real: true, parte: ['Feriado: de 07:00 a 22:00', 'En 2025, el día más flojo de diciembre tuvo 102.077 viajes: menos de la mitad de un día normal', 'Con tan pocos pasajes, lo difícil hoy es la caja'] }),
-        anioViejo: (f) => ({
-            n: 'Año viejo', sube: 0, demanda: 0.93, cuanto: 'Tarde de monigotes y viudas; noche vacía',
-            dia: { perfil: TEMPRANO, vuelta: [[9, 0], [12, 0.5], [15, 1]] },
-            eventos: [{ est: 8, de: 14, a: 19, porMin: 75 * f, sitio: 'mariscal', n: 'Años viejos en la Amazonas' }, { est: 11, de: 14.5, a: 19, porMin: 45 * f, sitio: 'carolina' }],
-            parte: ['Día laborable: de 05:30 a 23:00', 'Monigotes y viudas en la avenida Amazonas toda la tarde', 'A las 22:00 todo el mundo está en su casa, quemando el año viejo'],
-        }),
-    };
-    /** Las temporadas: no son un día, pero se notan si el turno cae en ellas. */
-    const temporada = (f) => {
-        const m = f.getMonth(), d = f.getDate(), finDeMes = mas(f, 1).getDate() === 1;
-        if ((m === 10 && d >= 28) || (m === 11 && d <= 5)) return { n: 'Fiestas de Quito', sube: 1, demanda: 1.15, cuanto: 'Semana de fiestas: más gente todo el día', fiestas: 17.5 };
-        if (m === 11 && d >= 10 && d <= 23) return { n: 'Compras de Navidad', sube: 1, demanda: 1.08, cuanto: 'Novenas y compras: tardes más cargadas' };
-        if (m === 6 || (m === 7 && d <= 28)) return { n: 'Vacaciones escolares', sube: -1, demanda: 0.93, cuanto: 'Sin estudiantes: picos más bajos' };
-        if (d === 15 || finDeMes) return { n: 'Día de pago', sube: 1, demanda: 1.04, cuanto: 'Quincena: algo más de movimiento' };
-        return null;
+        'Fundación de Quito': FIESTA_QUITO, 'Día de Quito': FIESTA_QUITO,
+        'Quito 15K': () => ({ imanes: [{ est: 1, de: 7, a: 8.2, f: 3 }, { est: 2, de: 7, a: 8.2, f: 2.5 }], parte: ['Los corredores van al sur temprano y salen del norte, cansados, desde las 09:30'] }),
+        'Regreso a clases': () => ({ imanes: [{ est: 9, de: 6, a: 8.5, f: 1.8 }], parte: ['La Universidad Central se nota en los dos picos y al mediodía'] }),
     };
 
-    // ───────────────────────── El turno sin fin ─────────────────────────
     const EVENTOS = [
         { n: 'Concierto en el Parque Bicentenario', corto: 'Concierto', sitio: 'bicentenario', est: [[14, 1], [13, 0.3]] },
         { n: 'Partido en el Estadio Atahualpa', corto: 'Partido', sitio: 'estadio', est: [[12, 1], [11, 0.55]] },
@@ -599,91 +545,98 @@ const CAMPANA = (() => {
     /**
      * En qué fecha cae el día `n` del turno sin fin. El 7 es el domingo 6 de diciembre de 2026 y el 8, el lunes
      * siguiente. De ahí en adelante el turno salta de dos a seis días cada vez, pero nunca se salta una fecha
-     * señalada: si hay una en el camino, cae en ella.
+     * señalada: si hay una en el camino, cae en ella. Así un turno largo recorre el año entero.
      */
     const fechaDe = (n, semilla) => {
         let f = new Date(2026, 11, 6);
         for (let k = 8; k <= n; k++) {
             const salto = k === 8 ? 1 : 2 + Math.floor(azar(semilla * 977 + k * 131)() * 5);
             let sig = mas(f, salto);
-            for (let d = 1; d < salto; d++) if (hito(mas(f, d))) { sig = mas(f, d); break; }
+            for (let d = 1; d < salto; d++) if (senalada(mas(f, d))) { sig = mas(f, d); break; }
             f = sig;
         }
         return f;
     };
-    /** Las próximas fechas señaladas después de `f`: [{ fecha, n, sube }]. */
+    const subeDe = (c) => (c.tono === 'alza' ? 1 : c.tono === 'baja' ? -1 : 0);
+    /** Las próximas fechas señaladas después de `f`: [{ fecha, dia, n, sube, pct }]. */
     const proximas = (f, cuantas = 3) => {
         const lista = [];
-        for (let d = 1; d < 200 && lista.length < cuantas; d++) { const c = mas(f, d), cual = hito(c); if (cual) { const H = HITOS[cual](1); lista.push({ fecha: fechaTxt(c), dia: DIA[(c.getDay() + 6) % 7], n: H.n, sube: H.sube }); } }
+        for (let d = 1; d < 250 && lista.length < cuantas; d++) { const c = senalada(mas(f, d)); if (c) lista.push({ fecha: fechaTxt(c.fecha), dia: c.dia, n: c.n, sube: subeDe(c), pct: CAL.pct(c.cambio) }); }
         return lista;
     };
 
     /**
-     * El día número `n` del turno sin fin. Con la misma semilla sale siempre el mismo día. La fecha manda: si es
-     * feriado o fecha señalada, trae lo suyo; y encima, cada día hay un poco más de gente, una meta algo más alta
-     * y más cosas pasando a la vez.
+     * El día número `n` del turno sin fin. Con la misma semilla sale siempre el mismo día. La fecha manda: el
+     * calendario dice qué día es y cuánta gente se mueve; encima, cada día hay un poco más de gente que el
+     * anterior, una meta algo más alta y más cosas pasando a la vez.
      */
     const generar = (n, semilla) => {
         const rnd = azar(semilla * 131 + n * 7919), entre = (a, b) => a + rnd() * (b - a), ent = (a, b) => Math.floor(entre(a, b + 1)), uno = (l) => l[Math.floor(rnd() * l.length)];
-        const fecha = fechaDe(n, semilla), dow = (fecha.getDay() + 6) % 7, k = n - 7, crece = Math.min(2, 1 + 0.03 * k), fuerza = Math.min(1.6, 1 + 0.025 * k);
-        const cual = hito(fecha), H = cual ? HITOS[cual](fuerza) : null, T = H ? null : temporada(fecha), feriado = !!(H && H.feriado);
-        const base = feriado ? FERIADO : dow === 5 ? SABADO : dow === 6 ? Object.assign({}, SABADO, { cierra: 22, fijo: 0.62 }) : {};
-        const D = Object.assign({ n: DIA[dow], corto: `Día ${n}`, fecha: fechaTxt(fecha), sinfin: true, numero: n }, base, H && H.dia);
-        // Cuánta gente, como fracción de los viajes de un día laborable: lo propio del día (un sábado mueve unos 136.000
-        // de 205.000; un domingo, menos) o lo que diga la fecha señalada, por lo que crece el turno. Se divide por el
-        // peso del reparto por horas para que la fracción se cumpla sea cual sea ese reparto.
-        const fraccion = H ? H.demanda : (dow === 5 ? 0.665 : dow === 6 ? 0.55 : 1) * (T ? T.demanda : 1);
-        // Lo que la fecha trae por su cuenta (la procesión, las compras) ya está dentro de esa fracción: se descuenta del resto.
-        const propios = ((H && H.eventos) || []).reduce((a, e) => a + e.porMin * (e.a - e.de) * 60, 0) / 205000;
-        D.demanda = Math.max(fraccion * crece * 0.5, fraccion * crece - propios) / SIM.nivelDe(D);
-        D.fijo = (D.fijo || 1) * crece;      // más gente es también más personal, más limpieza y más seguridad
-        D.meta = Math.min(86, 74 + Math.floor(k / 2));
-        if (T && T.fiestas) D.fiestas = T.fiestas;
-        D.hito = H ? { n: H.n, sube: H.sube, cuanto: H.cuanto, real: !!H.real, feriado } : T ? { n: T.n, sube: T.sube, cuanto: T.cuanto, temporada: true } : null;
-        const sucesos = (H && H.sucesos ? H.sucesos.slice() : []), eventos = (H && H.eventos ? H.eventos.slice() : []), parte = [], titulos = [], abre = D.abre || 5.5, cierra = D.cierra || 23;
-        if (H) parte.push(...H.parte); else parte.push(dow >= 5 ? `Horario de ${dow === 5 ? 'sábado: de 07:00 a 23:00' : 'domingo: de 07:00 a 22:00'}` : 'Día laborable: de 05:30 a 23:00');
-        if (T) parte.push(`${T.n}: ${T.cuanto.charAt(0).toLowerCase() + T.cuanto.slice(1)}`);
+        const fecha = fechaDe(n, semilla), c = CAL.de(fecha), k = n - 7, crece = Math.min(2, 1 + 0.03 * k), fuerza = Math.min(1.6, 1 + 0.025 * k);
+        const X = c.n && TEXTURA[c.n] ? TEXTURA[c.n](fuerza) : {}, feriado = c.feriado, flojo = c.tono === 'baja' && (feriado || c.dow >= 5);
+        const D = { n: c.dia, corto: `Día ${n}`, fecha: fechaTxt(fecha), sinfin: true, numero: n };
+        if (c.tipo !== 'laborable') { D.abre = c.abre; D.fijo = c.tipo === 'sabado' ? 0.68 : 0.62; D.calma = feriado ? 2 : 1; }      // sin apuro: se espera más tranquilo
+        if (c.cierra !== 23) D.cierra = c.cierra;
+        if (X.perfil || c.perfil) { D.perfil = X.perfil || c.perfil; D.vuelta = X.vuelta || c.vuelta; }
+        if (c.fiestas) D.fiestas = c.fiestas;
+        const sucesos = [], eventos = (X.eventos || []).slice(), parte = [], titulos = [], abre = D.abre || 5.5, cierra = D.cierra || 23;
+        // Los eventos que el calendario le pone a la fecha: `k` es su tamaño; a la estación principal llegan unas 210 personas por minuto con k = 1.
+        for (const ev of c.ev) ev.est.forEach(([i, peso], q) => eventos.push({ est: i, de: ev.de, a: Math.min(ev.a, cierra - 0.05), porMin: 210 * ev.k * peso * fuerza, sitio: ev.lugar, n: q ? undefined : ev.n }));
+        for (const [hora, texto, est] of (c.aviso || []).concat(X.avisos || [])) sucesos.push({ hora, tipo: 'aviso', texto, est });
+        // Cuánta gente: la fracción de un día laborable que dice el calendario, por lo que crece el turno. Lo que la fecha
+        // trae por su cuenta (la procesión, las compras) ya está dentro de esa fracción, así que se descuenta del resto; y
+        // se divide por el peso del reparto por horas para que la fracción se cumpla sea cual sea ese reparto.
+        const propios = eventos.reduce((a, e) => a + e.porMin * (e.a - e.de) * 60, 0) / 205000;
+        D.demanda = Math.max(c.factor * crece * 0.5, c.factor * crece - propios) / SIM.nivelDe(D);
+        if (D.fijo || crece > 1) D.fijo = (D.fijo || 1) * crece;      // más gente es también más personal, más limpieza y más seguridad
+        D.meta = Math.min(86, 74 + Math.floor(k / 2)) - (flojo ? 4 : 0);
+        if (X.imanes) D.imanes = X.imanes;
+        // Lo que dice el calendario de la fecha: el tablero lo muestra aparte, con su cifra.
+        D.hito = c.n ? { n: c.n, sube: subeDe(c), pct: CAL.pct(c.cambio), frente: feriado && c.dow < 5 ? 'un día laborable' : `un ${c.dia.toLowerCase()} normal`, real: c.real, dato: c.dato, feriado } : null;
+        parte.push(c.tipo === 'laborable' ? `Día laborable: de 05:30 a ${hhmm(cierra)}` : `${feriado ? 'Feriado' : c.tipo === 'sabado' ? 'Sábado' : 'Domingo'}: de 07:00 a ${hhmm(cierra)}`);
+        if (X.parte) parte.push(...X.parte);
+        if (flojo) parte.push('Con tan pocos pasajes, lo difícil hoy es la caja: espacia los trenes');
         parte.push(`Además, el Metro ya lleva un ${Math.round((crece - 1) * 100)}% más de gente que cuando lo recibiste`);
-        if (H && H.imanes) D.imanes = H.imanes;
         // Cuántas cosas más pasan hoy: dos al principio (una, si la fecha ya trae lo suyo), y cada dos días una más.
         const seca = fecha.getMonth() >= 5 && fecha.getMonth() <= 8;      // de junio a septiembre casi no llueve en Quito
-        const bolsa = ['lluvia', 'taller', 'averias', 'evento', 'maquinas', 'paro', 'granizada', 'evento'].filter((c) => !(seca && (c === 'lluvia' || c === 'granizada') && rnd() < 0.85) && !(feriado && c === 'paro') && !(H && H.sube < 0 && c === 'evento'));      // en un feriado flojo no hay paro ni conciertos
+        const bolsa = ['lluvia', 'taller', 'averias', 'evento', 'maquinas', 'paro', 'granizada', 'evento']
+            .filter((q) => !(seca && (q === 'lluvia' || q === 'granizada') && rnd() < 0.85) && !(feriado && q === 'paro') && !(flojo && q === 'evento'));      // en un feriado flojo no hay paro ni conciertos
         for (let i = bolsa.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [bolsa[i], bolsa[j]] = [bolsa[j], bolsa[i]]; }
         let mojado = false, hora0 = 0;
-        for (const c of bolsa.slice(0, Math.min(6, (H ? 1 : 2) + Math.floor(k / 2)))) {
-            if (c === 'lluvia' && !mojado) {
+        for (const q of bolsa.slice(0, Math.min(6, (c.n ? 1 : 2) + Math.floor(k / 2)))) {
+            if (q === 'lluvia' && !mojado) {
                 const de = entre(13, 17.5), a = Math.min(de + entre(1.5, 3), cierra); mojado = true; hora0 = de; D.lluvia = [de, a, 1];
                 titulos.push('Aguacero'); parte.push(`Aguacero de ${hhmm(de)} a ${hhmm(a)}`);
                 sucesos.push({ hora: de - 0.3, tipo: 'aviso', texto: 'El cielo se cierra sobre el Pichincha. En minutos empieza a llover.' });
-            } else if (c === 'granizada' && !mojado) {
+            } else if (q === 'granizada' && !mojado) {
                 const de = entre(13.5, 16.5), ct = uno(CORTES), min = ent(80, 130) + Math.min(60, k * 4); mojado = true; hora0 = de; D.lluvia = [de, Math.min(de + 3.2, cierra), 2];
                 titulos.push('Granizada'); parte.push(`Tormenta con granizo hacia las ${hhmm(de)}: puede haber estaciones cerradas`);
                 sucesos.push({ hora: de - 0.2, tipo: 'aviso', tono: 'mal', texto: 'Aviso del INAMHI: tormenta eléctrica con granizo sobre Quito. Empieza en minutos.' },
                     { hora: de + 0.45, tipo: 'corte', de: ct.de, a: ct.a, min, deja: [], texto: 'El agua y el hielo entran por las bocas del Metro. ' + ct.t });
-            } else if (c === 'taller' && !D.trenesFuera) {
+            } else if (q === 'taller' && !D.trenesFuera) {
                 D.trenesFuera = Math.min(4, ent(1, 2) + Math.floor(k / 6)); titulos.push('Trenes en el taller'); parte.push(`${D.trenesFuera} ${D.trenesFuera > 1 ? 'trenes' : 'tren'} en el taller`);
-            } else if (c === 'averias') {
+            } else if (q === 'averias') {
                 const cuantas = Math.min(4, ent(1, 2) + Math.floor(k / 5));
                 for (let i = 0; i < cuantas; i++) sucesos.push({ hora: entre(abre + 1, cierra - 2), tipo: 'averia', est: ent(1, 13), min: ent(7, 12) });
                 titulos.push('Averías'); parte.push('El taller avisa de trenes con fallas pendientes: puede haber averías');
-            } else if (c === 'evento') {
-                const libres = EVENTOS.filter((e) => !eventos.some((q) => q.est === e.est[0][0])); if (!libres.length) continue;
+            } else if (q === 'evento') {
+                const libres = EVENTOS.filter((e) => !eventos.some((x) => x.est === e.est[0][0])); if (!libres.length) continue;
                 const ev = uno(libres), fin = entre(Math.max(abre + 5, 12.5), cierra - 1.6);
-                ev.est.forEach(([i, peso], q) => eventos.push({ est: i, de: fin, a: fin + 1.2, porMin: Math.min(270, 130 + 12 * k) * peso, sitio: ev.sitio, n: q ? undefined : ev.n }));
+                ev.est.forEach(([i, peso], x) => eventos.push({ est: i, de: fin, a: fin + 1.2, porMin: Math.min(270, 130 + 12 * k) * peso, sitio: ev.sitio, n: x ? undefined : ev.n }));
                 titulos.push(ev.corto); parte.push(`${ev.n}: termina a las ${hhmm(fin)}`);
-                sucesos.push({ hora: fin - 1.4, tipo: 'aviso', texto: `${ev.n}: termina a las ${hhmm(fin)}. Prepara trenes y boleterías en ${NOMBRE[ev.est[0][0]]}.`, est: ev.est[0][0] });
-            } else if (c === 'maquinas') {
+                sucesos.push({ hora: fin - 1.4, tipo: 'aviso', texto: `${ev.n}: termina a las ${hhmm(fin)}. Prepara trenes y boleterías en ${NOMBRE[ev.est[0][0]]}.`, est: ev.est[0][0], mapa: true });
+            } else if (q === 'maquinas') {
                 for (let i = 0, m = ent(2, 4); i < m; i++) sucesos.push({ hora: entre(abre + 0.5, cierra - 3), tipo: 'maquina', est: uno([0, 4, 6, 12, 14]), min: ent(120, 240) });
-            } else if (c === 'paro' && !D.paro) {
+            } else if (q === 'paro' && !D.paro) {
                 D.paro = true; D.demanda *= 1.15; titulos.push('Paro de buses'); parte.push('Paro de buses en media ciudad: un 15% más de gente en el Metro, todo el día');
             }
         }
         // Las decisiones: las que trae la fecha y, además, de una a cuatro del repertorio, repartidas en el día.
-        const usadas = new Set();
-        for (const [d, hora] of (H && H.decisiones) || []) { usadas.add(d); sucesos.push(dec(d, hora, 6)); }
+        const usadas = new Set(), propias = (c.dec ? [c.dec] : []).concat(X.decisiones || []);
+        for (const [d, hora, est] of propias) if (DECISIONES[d] && hora < cierra - 0.5) { usadas.add(d); sucesos.push(dec(d, hora, est)); }
         const libres = ['musico', 'colegio', 'vendedores', 'puerta', 'viral', 'via', 'tension', 'mochila', 'desmayo', 'bono', 'perro', 'tarjetas', 'escalera', 'carterista', 'aire', 'grafiti']
-            .concat(mojado ? ['gotera', 'gotera'] : [], dow >= 5 || feriado ? ['bicis'] : ['visita', 'protesta']).filter((d) => !(feriado && (d === 'colegio' || d === 'bono')));
-        const cuantas = Math.min(4, 1 + Math.floor(k / 3) + (rnd() < 0.5 ? 1 : 0)), ESTACION = { gotera: [5, 7, 9, 13], vendedores: [0, 2, 4, 14], musico: [6, 8, 11], tarjetas: [0, 4, 12, 14], carterista: [0, 4, 6, 11, 12] };
+            .concat(mojado ? ['gotera', 'gotera'] : [], c.tipo !== 'laborable' ? ['bicis'] : ['visita', 'protesta'], c.carnaval ? ['carnavaleros'] : []).filter((d) => !(c.tipo !== 'laborable' && (d === 'colegio' || d === 'bono')));
+        const cuantas = Math.max(0, Math.min(4, 1 + Math.floor(k / 3) + (rnd() < 0.5 ? 1 : 0)) - propias.length), ESTACION = { gotera: [5, 7, 9, 13], vendedores: [0, 2, 4, 14], musico: [6, 8, 11], tarjetas: [0, 4, 12, 14], carterista: [0, 4, 6, 11, 12], carnavaleros: [0, 4, 8, 11] };
         for (let i = 0; i < cuantas; i++) {
             let d = uno(libres), vueltas = 0; while (usadas.has(d) && vueltas++ < 30) d = uno(libres);
             if (usadas.has(d)) break;
@@ -694,14 +647,14 @@ const CAMPANA = (() => {
         }
         sucesos.sort((p, q) => p.hora - q.hora);
         D.sucesos = sucesos; D.eventos = eventos; D.parte = parte;
-        const resto = titulos.slice(0, H ? 1 : 2).map((t, i) => (i || H ? t.charAt(0).toLowerCase() + t.slice(1) : t));
-        D.t = H ? H.n + (resto.length ? ` y ${resto[0]}` : '') : resto.length ? resto.join(' y ') : T ? T.n : 'Día sin sobresaltos';
-        D.intro = `Día ${n} al frente de la línea` + (H ? `, y cae en ${H.n === 'Año viejo' ? 'el año viejo' : H.n}: ${H.cuanto.charAt(0).toLowerCase() + H.cuanto.slice(1)}.` : '.') + ` Mientras el ánimo no baje de ${D.meta - 10} y la caja no quede en rojo, el cargo sigue siendo tuyo.`;
+        const resto = titulos.slice(0, c.n ? 1 : 2).map((t, i) => (i || c.n ? t.charAt(0).toLowerCase() + t.slice(1) : t));
+        D.t = c.n ? c.n + (resto.length ? ` y ${resto[0]}` : '') : resto.length ? resto.join(' y ') : 'Día sin sobresaltos';
+        D.intro = `Día ${n} al frente de la línea.` + (c.n ? ` En el calendario: ${c.n}.` : '') + ` Mientras el ánimo no baje de ${D.meta - 10} y la caja no quede en rojo, el cargo sigue siendo tuyo.`;
         // En los días flojos el reto es la caja; en los demás, cualquiera.
-        D.reto = (H && H.sube < 0 ? RETOS.azul : RETOS[uno(['idos', 'espera', 'saldo', 'llenos'])])(k);
+        D.reto = (flojo ? RETOS.azul : RETOS[uno(['idos', 'espera', 'saldo', 'llenos'])])(k);
         return D;
     };
 
-    return { DIAS, MEJORAS, RANGOS, DECISIONES, HITOS, generar, fechaDe, proximas, pascua, fechasDe, NOMBRE };
+    return { DIAS, MEJORAS, RANGOS, DECISIONES, generar, fechaDe, proximas, NOMBRE };
 })();
 if (typeof module !== 'undefined') module.exports = CAMPANA;

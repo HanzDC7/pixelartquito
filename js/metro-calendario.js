@@ -108,6 +108,12 @@ const CALENDARIO = (() => {
         });
         pon(mas(P, -1), { n: 'Sábado Santo', f: 0.59, real: true, dato: 'El Sábado Santo de 2025 hubo 120.809 viajes, un 13% menos que un sábado normal.' });
         pon(P, { n: 'Domingo de Pascua', f: 0.46, real: true, dato: 'El Domingo de Pascua de 2025 hubo 97.286 viajes: el mínimo del mes.' });
+        // Mayo: la carrera Quito 15K, el último domingo.
+        { let v = fecha(a, 4, 31); while (dow(v) !== 6) v = mas(v, -1);
+            pon(v, { n: 'Quito 15K', f: 0.74, real: true, dato: 'El domingo 31 de mayo de 2026, con la Quito 15K, hubo 151.203 viajes: el domingo de más viajes del año.', ev: [{ n: 'Meta de la Quito 15K', corto: 'Quito 15K', lugar: 'estadio', est: [[12, 1], [11, 0.6]], de: 9.5, a: 12.5, k: 0.6 }] }); }
+        // Septiembre: el regreso a clases en la Sierra, el primer lunes (estimado).
+        { let v = fecha(a, 8, 1); while (dow(v) !== 0) v = mas(v, 1);
+            pon(v, { n: 'Regreso a clases', x: 1.05, real: false, dato: 'Vuelven los estudiantes. No encontré la cifra de ese día: se estima un 5% más que un lunes normal.', ev: [{ n: 'Salida de clases en la Universidad Central', corto: 'Regreso a clases', lugar: 'universidad', est: [[9, 1]], de: 12.5, a: 14, k: 0.35 }] }); }
         // Los feriados nacionales de un solo día.
         pon(traslado(fecha(a, 4, 1)), Object.assign({ n: 'Día del Trabajo' }, unDia));
         pon(traslado(fecha(a, 4, 24)), Object.assign({ n: 'Batalla de Pichincha' }, unDia));

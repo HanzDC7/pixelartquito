@@ -1,6 +1,7 @@
 """Recorre la semana entera en Chrome: las guías de cada día, la tienda que se va abriendo,
-las mecánicas que llegan una por día, la granizada con su tramo cortado, el final y el
-turno sin fin. Requiere: pip install playwright.
+las mecánicas que llegan una por día, el turno guardado a medias, la caja en rojo, la
+granizada con su tramo cortado, el final, el turno sin fin sobre el calendario, los
+logros y la partida perdida. Requiere: pip install playwright.
 
     python3 tools/playtest-semana.py                      # escritorio, 1440 × 900
     python3 tools/playtest-semana.py --size 390x844       # teléfono de pie (táctil)
@@ -48,7 +49,8 @@ with sync_playwright() as p:
         js('''([h, v, op]) => { const s = Q.juego.sim; if (h) s.horario = h; if (v) s.est.forEach((e) => { e.ventanillas = v; });
               for (let n = 0; n < 9000 && !s.terminado; n++) { s.avanzar(5); while (s.decisiones.length) s.decidir(s.decisiones[0], Math.min(op, s.decisiones[0].opciones.length - 1)); }
               Q.mapa.extra.paso(0); }''', [horario, ventanillas, opcion])
-    partida = lambda: json.loads(js("localStorage.getItem('quito-jefe-de-linea')"))['partidas'][0]
+    partida_n = lambda k: json.loads(js("localStorage.getItem('quito-jefe-de-linea')"))['partidas'][k]
+    partida = lambda: partida_n(0)
     paso = lambda: page.locator('#jtut .zona').text_content()
 
     page.goto(URL + '#juego'); page.wait_for_function("typeof Q !== 'undefined' && !!Q.juego")
@@ -88,6 +90,7 @@ with sync_playwright() as p:
     terminar_dia()
     ok('Informe del lunes con estrellas', page.locator('#jfin .estrellas').is_visible() and partida()['estrellas'][0] >= 2, partida()['estrellas'])
     ok('Informe anuncia la tienda', 'Nuevo en la tienda' in page.locator('#jfin').inner_text())
+    ok('El primer día da su logro', page.locator('#jfin p.logro').count() >= 1 and 'Primer día' in page.locator('#jfin').text_content())
     ok('Gráfico del ánimo con barras', page.locator('#jfin .grafico i').count() >= 15 and page.locator('#jfin .grafico i').first.bounding_box()['height'] > 5)
     foto('06-informe-lunes')
 
@@ -108,8 +111,23 @@ with sync_playwright() as p:
     ok('Abrir ventanilla en Quitumbe', js('Q.juego.sim.est[0].ventanillas') == 3 and '4 de 5' in paso())
     pulsar(boton('Siguiente', '#jtut')); pulsar(boton('Siguiente', '#jtut'))
     ok('Guía del martes terminada, reloj en marcha', not page.locator('#jtut').is_visible() and js('Q.juego.sim.t > Q.juego.sim.abre || true'))
+    # Un turno a medias: se avanza, se da una orden, se recarga la página y el día tiene que volver idéntico.
+    js("() => { const s = Q.juego.sim; s.orden('horario', 1, 5); s.orden('ventanillas', 4, 3); while (s.t < 9.6 * 60) s.avanzar(5); Q.mapa.extra.paso(0); }")
+    pulsar(boton('Pausar'))      # en pausa, para comparar el mismo instante antes y después de recargar
+    if not page.locator('#jpanel.boleterias').is_visible(): pulsar(boton('Boleterías'))
+    pulsar(page.locator('#jpanel .bol').nth(6).locator('.mas'))
+    huella = "JSON.stringify([Q.juego.sim.t, Q.juego.sim.pasos, Q.juego.sim.cuenta.viajes, Q.juego.sim.cuenta.ingresos, Q.juego.sim.animo, Q.juego.sim.est.map((e) => [e.ventanillas, e.colaTotal, e.anden[0].total]), Q.juego.sim.trenes.map((t) => [t.estado, t.s, t.total]), Q.juego.sim.horario])"
+    antes = js(huella)
+    ok('El turno a medias queda guardado', partida()['turno'] is not None and partida()['turno']['dia'] == 1)
+    page.reload(); page.wait_for_function("typeof Q !== 'undefined' && !!Q.juego")
+    ok('El menú avisa del turno a medias', 'turno a medias' in page.locator('#jfin .hueco').first.text_content())
+    pulsar(boton('Continuar'))
+    ok('La semana ofrece seguir el turno', 'Dejaste a medias el martes' in page.locator('#jfin').text_content())
+    pulsar(boton('Seguir ese turno'))
+    ok('El turno recuperado es idéntico y está en pausa', js(huella) == antes and js('Q.juego.sim.est[6].ventanillas') == 2 and page.locator('.jestado').text_content() == 'En pausa')
+    foto('08b-turno-recuperado')
     terminar_dia([8, 5, 8, 8, 8, 5, 8], 4)
-    ok('Informe del martes', partida()['estrellas'][1] >= 1, partida()['estrellas'])
+    ok('Informe del martes, y el turno a medias ya no está', partida()['estrellas'][1] >= 1 and partida()['turno'] is None, partida()['estrellas'])
 
     # ── Miércoles: trenes ──
     pulsar(page.locator('#jfin .acciones button.on')); pulsar(boton('Empezar el miércoles'))
@@ -124,11 +142,19 @@ with sync_playwright() as p:
     pulsar(boton('Ver el tren por dentro')); js('Q.mapa.repintar && Q.mapa.repintar()'); page.wait_for_timeout(250)
     foto('10-tren-por-dentro')
     pulsar(boton('← Volver al mapa')); pulsar(boton('Siguiente', '#jtut'))
+    js('Q.juego.partida.caja = -15000')      # a propósito: media semana en rojo
     terminar_dia([8, 5, 8, 8, 8, 5, 8], 4)
     ok('Informe del miércoles', partida()['estrellas'][2] >= 1, partida()['estrellas'])
+    pulsar(page.locator('#jfin .acciones button.on'))
+    txt = page.locator('#jfin').text_content()
+    ok('Media semana en rojo: llama el directorio con las cuentas y los consejos', 'Media semana en rojo' in txt and 'Dónde recortar' in txt and page.locator('#jfin .cuentas tr').count() >= 4 and page.locator('#jfin .consejo').count() >= 1)
+    foto('10b-auditoria')
+    pulsar(boton('Entendido: al jueves →'))
+    ok('El tablero avisa que la semana no puede cerrar en rojo', 'Si la semana termina en rojo, pierdes el cargo' in page.locator('#jfin').text_content())
+    js('Q.juego.partida.caja = 9000')
 
     # ── Jueves: decisiones ──
-    pulsar(page.locator('#jfin .acciones button.on')); pulsar(boton('Empezar el jueves'))
+    pulsar(boton('Empezar el jueves'))
     ok('Jueves: guía de decisiones', '1 de 2' in paso())
     pulsar(boton('Siguiente', '#jtut'))
     page.wait_for_selector('#jdec:not([hidden])', timeout=60000)
@@ -165,10 +191,13 @@ with sync_playwright() as p:
     pulsar(boton('Turno sin fin →'))
     txt = page.locator('#jfin').inner_text()
     ok('Tablero del turno sin fin: día 8, ocho casillas, tren nuevo en la tienda', 'Turno sin fin · día 8' in txt and page.locator('#jfin .dia').count() == 8 and 'Tren nuevo' in txt)
+    txt = page.locator('#jfin').text_content()
+    ok('El día 8 cae en el feriado trasladado de la Fundación y anuncia lo que viene', 'Feriado de la Fundación de Quito' in txt and 'Lo que viene' in txt and 'Nochebuena' in txt and page.locator('#jfin .fecha.baja').count() == 1)
+    js('Q.juego.partida.caja = 60000')
     foto('17-sinfin')
     pulsar(boton('Empezar el día 8'))
     ok('Día 8 en marcha, sin guía', js('Q.juego.sim !== null') and not page.locator('#jtut').is_visible() and 'Día 8' in page.locator('#jefe strong').text_content())
-    terminar_dia([8, 4, 6, 6, 6, 4, 8], 5)
+    terminar_dia([12, 12, 10, 10, 10, 10, 12], 3)
     sf = partida()['sinfin']
     ok('Día 8 superado: el turno sigue en el 9', sf['n'] == 9 and sf['mejor'] == 1 and 'Día 9 →' in page.locator('#jfin').text_content(), sf)
     foto('18-informe-sinfin')
@@ -179,8 +208,27 @@ with sync_playwright() as p:
     foto('19-relevo')
     pulsar(boton('Empezar otro turno →'))
     ok('Vuelve al día 8 con otra semilla', 'Turno sin fin · día 8' in page.locator('#jfin').inner_text())
+    pulsar(boton('Trayectoria'))
+    ok('Trayectoria: los 18 logros, con varios ganados', page.locator('#jfin .logros .logro').count() == 18 and page.locator('#jfin .logros .logro.hecho').count() >= 4, page.locator('#jfin .logros .logro.hecho').count())
+    foto('20-trayectoria')
+    pulsar(boton('Volver'))
     pulsar(boton('Menú principal'))
     ok('El menú muestra el récord', 'récord de 1 día' in page.locator('#jfin .hueco').first.inner_text(), page.locator('#jfin .hueco').first.inner_text())
+    # ── Una semana que cierra en rojo se pierde ──
+    pulsar(boton('Nueva partida').first)
+    js("""() => { const p = Q.juego.partida, c = { ingresos: 80000, trenes: 62000, personal: 9000, fijo: 29000, imprevistos: 4000, compras: 0, ociosas: 9000 };
+          p.dia = 6; p.guias = Array(7).fill(true); p.caja = -90000;
+          for (let i = 0; i < 6; i++) { p.estrellas[i] = 1; p.dias[i] = { estrellas: 1, animo: 70, operativo: -24000, saldo: -24000, viajes: 190000, km: 9000, idos: 4000, premio: 0, cuentas: c }; }
+          Q.juego.semana(6); }""")
+    ok('Último día con la caja en rojo: el tablero dice cuánto hace falta', 'para no perder el cargo' in page.locator('#jfin').text_content())
+    pulsar(boton('Empezar el domingo'))
+    terminar_dia([12, 10, 6, 5, 6, 6, 5], 4)
+    ok('La semana cerró en rojo: partida perdida', partida_n(1)['perdida'] is True and boton('Ver el cierre de la semana →').is_visible())
+    pulsar(boton('Ver el cierre de la semana →'))
+    ok('Pantalla de relevo, con las razones', page.locator('#jfin .caja.perdida').count() == 1 and 'Relevado del cargo' in page.locator('#jfin').text_content() and page.locator('#jfin .consejo').count() >= 1)
+    foto('21-partida-perdida')
+    pulsar(boton('Menú principal'))
+    ok('El menú marca la partida como perdida', 'Partida perdida' in page.locator('#jfin .hueco').nth(1).text_content())
     ok('Sin desbordes horizontales', js('document.documentElement.scrollWidth <= innerWidth'))
     nav.close()
 malas = [n for n, c in hechos if not c]
